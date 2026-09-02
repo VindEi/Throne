@@ -3,6 +3,7 @@
 #include <QString>
 #include <QMutex>
 #include "include/global/HTTPRequestHelper.hpp"
+#include "include/database/entities/Group.h"
 #ifndef Q_MOC_RUN
 #include <core/server/gen/libcore.pb.h>
 #endif
@@ -47,6 +48,16 @@ public:
         QString detail;
     };
 
+    struct SubInfoPanelState {
+        bool visible = false;
+        QString groupName;
+        Configs::SubUserInfo info;
+        qint64 lastUpdate = 0;
+        int announceOffset = 0;
+    };
+
+    void setSubscriptionStatus(const QString &groupName, const Configs::SubUserInfo &info, qint64 lastUpdate);
+
     void setDownloadReport(const DownloadProgressReport &report, bool show);
 
     void seedSpeedTest(int totalProfiles);
@@ -79,6 +90,8 @@ private:
     QString autoSelectorSectionHtml();
 
     QString vpnEndpointSectionHtml();
+    
+    QString subscriptionSectionHtml();
 
     // Pool threads seed panels while buildHtml reads them.
     mutable QMutex mu_;
@@ -88,6 +101,7 @@ private:
     LatencyTestPanelState latencyTest_ = {};
     AutoSelectorPanelState autoSelector_ = {};
     VpnEndpointPanelState vpnEndpoint_ = {};
+    SubInfoPanelState subInfo_ = {};
 
     std::atomic<int> testProgress{0};
 };

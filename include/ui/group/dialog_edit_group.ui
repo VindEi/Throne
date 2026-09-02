@@ -110,7 +110,7 @@
      <property name="title">
       <string>Subscription</string>
      </property>
-     <layout class="QGridLayout" name="_2">
+<layout class="QGridLayout" name="_2">
       <item row="0" column="0">
        <widget class="QLabel" name="label_4">
         <property name="text">
@@ -121,10 +121,37 @@
       <item row="0" column="1">
        <widget class="MyLineEdit" name="url"/>
       </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_interval">
+        <property name="text">
+         <string>Update Interval</string>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="1">
+       <widget class="QSpinBox" name="sub_update_interval">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>720</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
        <widget class="QCheckBox" name="skip_auto_update">
         <property name="text">
          <string>Skip automatic update</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="sub_info_label">
+        <property name="text">
+         <string notr="true"/>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
         </property>
        </widget>
       </item>

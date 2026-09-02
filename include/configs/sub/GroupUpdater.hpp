@@ -59,6 +59,8 @@ namespace Subscription {
     };
 
     extern GroupUpdater *groupUpdater;
+    int ParseUpdateInterval(const QString &headerStr);
 } // namespace Subscription
 
 void UI_update_all_groups(bool onlyAllowed = false);
+void UI_check_auto_update_groups();

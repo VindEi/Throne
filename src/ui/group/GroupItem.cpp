@@ -10,39 +10,34 @@
 #include "include/ui/mainwindow.h"
 
 
-QString ParseSubInfo(const QString &info) {
-    if (info.trimmed().isEmpty()) return "";
+static QString ParseSubInfo(const QString &info, int updateIntervalHours = 0) {
+    auto sub = Configs::ParseSubUserInfo(info);
+    if (!sub.valid) return "";
 
-    QString result;
+    QStringList parts;
+    QString usedStr = ReadableSize(sub.used());
+    QString totalStr = (sub.total > 0) ? ReadableSize(sub.total) : QString::fromUtf8("\u221E");
+    QString remainStr = (sub.total > 0) ? ReadableSize(sub.remaining()) : QString::fromUtf8("\u221E");
 
-    long long used = 0;
-    long long total = 0;
-    long long expire = 0;
+    parts << QObject::tr("Used: %1 / %2 (%3 remain)").arg(usedStr, totalStr, remainStr);
 
-    auto re0m = QRegularExpression("total=([0-9]+)").match(info);
-    if (re0m.lastCapturedIndex() >= 1) {
-        total = re0m.captured(1).toLongLong();
-    } else {
-        return "";
-    }
-    auto re1m = QRegularExpression("upload=([0-9]+)").match(info);
-    if (re1m.lastCapturedIndex() >= 1) {
-        used += re1m.captured(1).toLongLong();
-    }
-    auto re2m = QRegularExpression("download=([0-9]+)").match(info);
-    if (re2m.lastCapturedIndex() >= 1) {
-        used += re2m.captured(1).toLongLong();
-    }
-    auto re3m = QRegularExpression("expire=([0-9]+)").match(info);
-    if (re3m.lastCapturedIndex() >= 1) {
-        expire = re3m.captured(1).toLongLong();
+    if (sub.expire > 0) {
+        qint64 now = QDateTime::currentSecsSinceEpoch();
+        qint64 diffDays = (sub.expire - now) / 86400;
+        if (sub.isExpired()) {
+            parts << QObject::tr("Expired (%1)").arg(DisplayTime(sub.expire, QLocale::ShortFormat));
+        } else {
+            parts << QObject::tr("Expires in %1d (%2)").arg(diffDays).arg(DisplayTime(sub.expire, QLocale::ShortFormat));
+        }
     }
 
-    result = QObject::tr("Used: %1 Remain: %2 Expire: %3")
-                         .arg(ReadableSize(used), (total == 0) ? QString::fromUtf8("\u221E") : ReadableSize(total - used), DisplayTime(expire, QLocale::ShortFormat));
+    if (updateIntervalHours > 0) {
+        parts << QObject::tr("Auto-update: %1h").arg(updateIntervalHours);
+    }
 
-    return result;
+    return parts.join(" | ");
 }
+
 
 GroupItem::GroupItem(QWidget *parent, const std::shared_ptr<Configs::Group> &ent, QListWidgetItem *item) : QWidget(parent), ui(new Ui::GroupItem) {
     ui->setupUi(this);
@@ -81,8 +76,8 @@ void GroupItem::refresh_data() {
         if (ent->sub_last_update != 0) {
             info << tr("Last update: %1").arg(DisplayTime(ent->sub_last_update, QLocale::ShortFormat));
         }
-        auto subinfo = ParseSubInfo(ent->info);
-        if (!ent->info.isEmpty()) {
+        auto subinfo = ParseSubInfo(ent->info, ent->sub_update_interval);
+        if (!subinfo.isEmpty()) {
             info << subinfo;
         }
         if (info.isEmpty()) {
@@ -92,6 +87,7 @@ void GroupItem::refresh_data() {
             ui->subinfo->setText(info.join(" | "));
         }
     }
+
     runOnThread(
         [=,this] {
             adjustSize();

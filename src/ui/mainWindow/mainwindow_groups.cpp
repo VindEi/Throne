@@ -31,6 +31,48 @@ void MainWindow::show_group(int gid) {
         return;
     }
 
+    if (group != nullptr) {
+        auto subInfo = group->GetSubUserInfo();
+        dataViewHtmlGenerator_.setSubscriptionStatus(group->name, subInfo, group->sub_last_update);
+        UpdateDataView();
+
+        int tabIdx = groupId2TabIndex(gid);
+        if (tabIdx >= 0) {
+            QStringList tip;
+            QString title = subInfo.title.isEmpty() ? group->name : subInfo.title;
+            tip << title;
+            if (!group->url.isEmpty()) {
+                tip << tr("Type: Subscription");
+                if (group->sub_last_update > 0) {
+                    tip << tr("Last updated: %1").arg(DisplayTime(group->sub_last_update, QLocale::ShortFormat));
+                }
+                if (group->sub_update_interval > 0) {
+                    tip << tr("Auto-update: every %1h").arg(group->sub_update_interval);
+                }
+                if (subInfo.valid) {
+                    tip << tr("Used: %1").arg(ReadableSize(subInfo.used()));
+                    if (subInfo.total > 0) {
+                        tip << tr("Total: %1 (Remaining: %2)").arg(ReadableSize(subInfo.total), ReadableSize(subInfo.remaining()));
+                    }
+                    if (subInfo.expire > 0) {
+                        tip << tr("Expires: %1").arg(DisplayTime(subInfo.expire, QLocale::ShortFormat));
+                    }
+                    if (!subInfo.support_url.isEmpty()) {
+                        tip << tr("Support: %1").arg(subInfo.support_url);
+                    }
+                    if (!subInfo.web_url.isEmpty()) {
+                        tip << tr("Portal: %1").arg(subInfo.web_url);
+                    }
+                    if (!subInfo.announce.isEmpty()) {
+                        tip << tr("Announcement: %1").arg(subInfo.announce);
+                    }
+                }
+            }
+            ui->tabWidget->setTabToolTip(tabIdx, tip.join("\n"));
+        }
+    }
+
+
     if (Configs::dataManager->settingsRepo->current_group != gid) {
         saveProfileFocusState();
         if (auto lastGroup = Configs::dataManager->groupsRepo->CurrentGroup()) {

@@ -51,6 +51,15 @@ void DataViewHtmlGenerator::setVpnEndpointStatus(const QString &summary, const Q
     vpnEndpoint_.visible = !summary.isEmpty();
 }
 
+void DataViewHtmlGenerator::setSubscriptionStatus(const QString &groupName, const Configs::SubUserInfo &info, qint64 lastUpdate) {
+    QMutexLocker lk(&mu_);
+    subInfo_.groupName = groupName;
+    subInfo_.info = info;
+    subInfo_.lastUpdate = lastUpdate;
+    subInfo_.visible = info.valid;
+}
+
+
 void DataViewHtmlGenerator::clearTestSections() {
     QMutexLocker lk(&mu_);
     latencyTest_ = {};
@@ -80,6 +89,9 @@ QString DataViewHtmlGenerator::buildHtml() {
     }
     if (html.isEmpty() && autoSelector_.visible) {
         html += autoSelectorSectionHtml();
+    }
+    if (html.isEmpty() && subInfo_.visible) {
+        html += subscriptionSectionHtml();
     }
     return html;
 }
@@ -169,5 +181,123 @@ QString DataViewHtmlGenerator::latencyTestSectionHtml() {
         content += QString(" (%1 / %2)").arg(Int2String(testProgress.load()), Int2String(latencyTest_.totalProfiles));
     }
     res += QString("<p style='text-align:center;margin:0;'>%1</p>").arg(content);
+    return res;
+}
+
+QString DataViewHtmlGenerator::subscriptionSectionHtml() {
+    if (!subInfo_.visible || !subInfo_.info.valid) return {};
+
+    const auto &info = subInfo_.info;
+    const auto &tk = themeManager->tokens;
+
+    QString usedStr = ReadableSize(info.used());
+    QString totalStr = (info.total > 0) ? ReadableSize(info.total) : QString::fromUtf8("∞");
+    double pct = info.percentUsed();
+
+    // 1. Color matching threshold
+    QString barColor = (pct > 90.0 || info.isExpired()) ? tk.danger.name() : (pct > 75.0 ? tk.tag.name() : tk.info.name());
+
+    // 2. Real Working Progress Bar Pill with text on it
+    QString progressBar;
+    if (info.total > 0) {
+        int fillPct = std::clamp(static_cast<int>(pct), 5, 95);
+        int emptyPct = 100 - fillPct;
+        progressBar = QString(
+            "<table width='130' border='0' cellpadding='1' cellspacing='0' style='border:1px solid %1; background-color:%2;'>"
+            "<tr>"
+            "<td width='%3%' bgcolor='%4' align='center' style='font-size:7.5pt; font-weight:bold; color:#FFFFFF; white-space:nowrap;'>"
+            "&nbsp;%5&nbsp;"
+            "</td>"
+            "<td width='%6%' bgcolor='%2' align='center' style='font-size:7.5pt; font-weight:bold; color:%7; white-space:nowrap;'>"
+            "&nbsp;/ %8 (%9%)&nbsp;"
+            "</td>"
+            "</tr>"
+            "</table>"
+        ).arg(tk.borderSubtle.name(), tk.surface.name(), QString::number(fillPct), barColor, usedStr, QString::number(emptyPct), tk.onSurface.name(), totalStr, QString::number(static_cast<int>(pct)));
+    } else {
+        // Unlimited Quota Bar
+        progressBar = QString(
+            "<table width='110' border='0' cellpadding='1' cellspacing='0' style='border:1px solid %1; background-color:%2;'>"
+            "<tr>"
+            "<td width='100%' bgcolor='%3' align='center' style='font-size:7.5pt; font-weight:bold; color:#FFFFFF; white-space:nowrap;'>"
+            "&nbsp;%4 / ∞&nbsp;"
+            "</td>"
+            "</tr>"
+            "</table>"
+        ).arg(tk.borderSubtle.name(), tk.surface.name(), barColor, usedStr);
+    }
+
+    // 3. Expiration Text
+    QString expireText;
+    if (info.expire > 0) {
+        qint64 now = QDateTime::currentSecsSinceEpoch();
+        qint64 diffDays = (info.expire - now) / 86400;
+        if (info.isExpired()) {
+            expireText = QString("<font color='%1'><b>⛔ %2</b></font>")
+                             .arg(tk.danger.name(), QObject::tr("Expired"));
+        } else if (diffDays <= 3) {
+            expireText = QString("<font color='%1'><b>⚠️ %2d left</b></font>")
+                             .arg(tk.danger.name(), QString::number(std::max<qint64>(1, diffDays)));
+        } else {
+            expireText = QString("<font color='%1'>📅 %2 (%3d)</font>")
+                             .arg(tk.muted.name(), QDateTime::fromSecsSinceEpoch(info.expire).toString("dd.MM.yyyy"), QString::number(diffDays));
+        }
+    } else {
+        expireText = QString("<font color='%1'>♾️ %2</font>").arg(tk.muted.name(), QObject::tr("No Expiry"));
+    }
+
+    // 4. Action links next to Expiry (Portal 🌐 & Support 💬)
+    QString actionLinks;
+    if (!info.web_url.isEmpty()) {
+        actionLinks += QString("&nbsp;<a href='%1' style='text-decoration:none; font-size:8.5pt;' title='%2'>🌐</a>")
+                           .arg(info.web_url.toHtmlEscaped(), QObject::tr("Website / Portal"));
+    }
+    if (!info.support_url.isEmpty()) {
+        actionLinks += QString("&nbsp;<a href='%1' style='text-decoration:none; font-size:8.5pt;' title='%2'>💬</a>")
+                           .arg(info.support_url.toHtmlEscaped(), QObject::tr("Technical Support"));
+    }
+
+    QString displayTitle = info.title.isEmpty() ? subInfo_.groupName : info.title;
+
+    // 5. Rolling Announce Marquee (Smooth Ticker for Long Messages)
+    QString announceRow;
+    if (!info.announce.isEmpty()) {
+        QString text = info.announce;
+        constexpr int maxLen = 42;
+        if (text.length() > maxLen) {
+            QString loopText = text + "          •          " + text;
+            subInfo_.announceOffset = (subInfo_.announceOffset + 1) % (text.length() + 21);
+            text = loopText.mid(subInfo_.announceOffset, maxLen);
+        }
+        announceRow = QString("<tr><td colspan='3' align='center' style='font-size:7.5pt; color:%1; padding-top:1px;'>"
+                              "📢 <i>%2</i>"
+                              "</td></tr>")
+                          .arg(tk.muted.name(), text.toHtmlEscaped());
+    }
+
+    // 6. Strict 2-Row Layout: Row 1 (Title | Bar | Expiry & Links), Row 2 (Announce)
+    QString res = "<table width='100%' border='0' cellpadding='0' cellspacing='0'>";
+    
+    // Row 1
+    res += QString("<tr>"
+                   "<td align='left' width='30%' style='font-size:8.5pt; color:%1; white-space:nowrap;'>"
+                   "<b>%2</b>"
+                   "</td>"
+                   "<td align='center' width='40%'>"
+                   "%3"
+                   "</td>"
+                   "<td align='right' width='30%' style='font-size:8pt; white-space:nowrap;'>"
+                   "%4%5"
+                   "</td>"
+                   "</tr>")
+               .arg(tk.onSurface.name(), displayTitle.toHtmlEscaped(), progressBar, expireText, actionLinks);
+
+    // Row 2 (Announce)
+    if (!announceRow.isEmpty()) {
+        res += announceRow;
+    }
+
+    res += "</table>";
+
     return res;
 }

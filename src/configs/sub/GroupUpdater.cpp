@@ -863,12 +863,50 @@ namespace Subscription {
         return outcome;
     }
 
-    void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
+    int ParseUpdateInterval(const QString &headerStr) {
+        if (headerStr.trimmed().isEmpty()) return 0;
+        QString s = headerStr.trimmed().remove('"').remove('\'').toLower();
+        bool ok = false;
+        if (s.endsWith("h")) {
+            int h = s.chopped(1).toInt(&ok);
+            if (ok && h > 0) return h;
+        } else if (s.endsWith("d")) {
+            int d = s.chopped(1).toInt(&ok);
+            if (ok && d > 0) return d * 24;
+        } else if (s.endsWith("s")) {
+            int sec = s.chopped(1).toInt(&ok);
+            if (ok && sec > 0) return qMax(1, sec / 3600);
+        }
+        int num = s.toInt(&ok);
+        if (ok && num > 0) {
+            if (num > 1000) return qMax(1, num / 3600); 
+            return num; 
+        }
+        
+        return 0;
+    }
+
+    QString decode3XUIHeader(const QString &raw) {
+        QString str = raw.trimmed();
+        if (str.startsWith("base64:", Qt::CaseInsensitive)) {
+            QByteArray decoded = QByteArray::fromBase64(str.mid(7).trimmed().toUtf8());
+            if (!decoded.isEmpty()) return QString::fromUtf8(decoded).trimmed();
+        }
+        return str;
+    }
+
+
+void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
         Configs::dataManager->settingsRepo->imported_count = 0;
         auto rawUpdater = std::make_unique<RawUpdater>();
         rawUpdater->gid_add_to = _sub_gid;
 
         QString sub_user_info;
+        int sub_interval_header = 0;
+        QString profile_title;
+        QString web_page_url;
+        QString support_url;
+        QString announce_msg;
         bool asURL = _sub_gid >= 0 || _not_sub_as_url;
         auto content = _str.trimmed();
         auto group = Configs::dataManager->groupsRepo->GetGroup(_sub_gid);
@@ -885,10 +923,52 @@ namespace Subscription {
             }
 
             content = resp.data;
+
+            // 1. Extract from HTTP Headers
             sub_user_info = NetworkRequestHelper::GetHeader(resp.header, "Subscription-UserInfo");
+            if (sub_user_info.isEmpty()) {
+                sub_user_info = NetworkRequestHelper::GetHeader(resp.header, "Subscription-Userinfo");
+            }
+
+            QString intervalHeader = NetworkRequestHelper::GetHeader(resp.header, "profile-update-interval");
+            if (intervalHeader.isEmpty()) {
+                intervalHeader = NetworkRequestHelper::GetHeader(resp.header, "x-profile-update-interval");
+            }
+            sub_interval_header = ParseUpdateInterval(intervalHeader);
+
+            profile_title = decode3XUIHeader(NetworkRequestHelper::GetHeader(resp.header, "Profile-Title"));
+            web_page_url = NetworkRequestHelper::GetHeader(resp.header, "Profile-Web-Page-Url");
+            support_url = NetworkRequestHelper::GetHeader(resp.header, "Support-Url");
+            if (support_url.isEmpty()) support_url = NetworkRequestHelper::GetHeader(resp.header, "support-url");
+            announce_msg = decode3XUIHeader(NetworkRequestHelper::GetHeader(resp.header, "Announce"));
+
+            // 2. Extract from in-body comments (#profile-title, #announce, etc.)
+            for (const auto &line : content.split('\n')) {
+                const auto trimmed = line.trimmed();
+                if (!trimmed.startsWith('#') && !trimmed.startsWith("//")) break;
+                auto clean = trimmed.mid(trimmed.startsWith("//") ? 2 : 1).trimmed();
+
+                if (sub_user_info.isEmpty() && clean.startsWith("subscription-userinfo:", Qt::CaseInsensitive)) {
+                    sub_user_info = clean.section(':', 1).trimmed();
+                } else if (sub_interval_header <= 0 && clean.startsWith("profile-update-interval:", Qt::CaseInsensitive)) {
+                    sub_interval_header = ParseUpdateInterval(clean.section(':', 1).trimmed());
+                } else if (profile_title.isEmpty() && clean.startsWith("profile-title:", Qt::CaseInsensitive)) {
+                    profile_title = decode3XUIHeader(clean.section(':', 1).trimmed());
+                } else if (web_page_url.isEmpty() && clean.startsWith("profile-web-page-url:", Qt::CaseInsensitive)) {
+                    web_page_url = clean.section(':', 1).trimmed();
+                } else if (support_url.isEmpty() && clean.startsWith("support-url:", Qt::CaseInsensitive)) {
+                    support_url = clean.section(':', 1).trimmed();
+                } else if (announce_msg.isEmpty() && (clean.startsWith("announce:", Qt::CaseInsensitive) || clean.startsWith("notice:", Qt::CaseInsensitive))) {
+                    announce_msg = decode3XUIHeader(clean.section(':', 1).trimmed());
+                }
+            }
 
             MW_show_log("<<<<<<<< " + QObject::tr("Subscription request fininshed: %1").arg(groupName));
+            if (sub_interval_header > 0) {
+                MW_show_log(QObject::tr("Subscription server update interval: %1 hour(s)").arg(sub_interval_header));
+            }
         }
+
 
         QList<std::shared_ptr<Configs::Profile>> in;
         // Auto selectors are local state, not servers the remote sent: keep them out of the diff.
@@ -899,8 +979,26 @@ namespace Subscription {
         bool cleared = false;
 
         if (group != nullptr) {
-            group->sub_last_update = QDateTime::currentMSecsSinceEpoch() / 1000;
-            group->info = sub_user_info;
+            group->sub_last_update = QDateTime::currentSecsSinceEpoch();
+
+            if (!profile_title.isEmpty() && (group->name.isEmpty() || group->name == QUrl(group->url).host())) {
+                group->name = profile_title;
+                MW_dialog_message(MwMessage::GroupsChanged, {});
+            }
+
+            QString fullInfo = sub_user_info;
+            if (!profile_title.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("title=") + profile_title;
+            if (!web_page_url.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("web_url=") + web_page_url;
+            if (!support_url.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("support_url=") + support_url;
+            if (!announce_msg.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("announce=") + announce_msg;
+            
+            if (!fullInfo.isEmpty()) {
+                group->info = fullInfo;
+            }
+
+            if (group->sub_update_interval == 0 && sub_interval_header > 0) {
+                group->sub_update_interval = sub_interval_header;
+            }
             Configs::dataManager->groupsRepo->Save(group);
             for (int i = 0; i < group->profiles.size(); i++) {
                 auto ent = Configs::dataManager->profilesRepo->GetProfile(group->profiles[i]);
@@ -1116,4 +1214,38 @@ void UI_update_all_groups(bool onlyAllowed) {
 
     auto groupsTabOrder = Configs::dataManager->groupsRepo->GetGroupsTabOrder();
     serialUpdateSubscription(groupsTabOrder, 0, onlyAllowed);
+}
+
+void UI_check_auto_update_groups() {
+    if (UI_update_all_groups_Updating) return;
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    const auto globalMinutes = Configs::dataManager->settingsRepo->sub_auto_update;
+    const bool globalEnabled = globalMinutes >= 30;
+    const auto tabOrder = Configs::dataManager->groupsRepo->GetGroupsTabOrder();
+
+    QList<int> dueGroups;
+    for (int gid : tabOrder) {
+        auto group = Configs::dataManager->groupsRepo->GetGroup(gid);
+        if (group == nullptr || group->url.isEmpty() || group->archive || group->skip_auto_update) continue;
+
+        qint64 intervalSecs = 0;
+        if (group->sub_update_interval > 0) {
+            intervalSecs = static_cast<qint64>(group->sub_update_interval) * 3600;
+        } else if (globalEnabled) {
+            intervalSecs = static_cast<qint64>(globalMinutes) * 60;
+        }
+        
+        if (intervalSecs <= 0) continue;
+
+        // If never updated or interval elapsed
+        if (group->sub_last_update <= 0 || (now - group->sub_last_update) >= intervalSecs) {
+            dueGroups << gid;
+        }
+    }
+
+    if (!dueGroups.isEmpty()) {
+        MW_show_log(QObject::tr("Auto-updating %1 due subscription(s)...").arg(dueGroups.size()));
+        serialUpdateSubscription(dueGroups, 0, true);
+    }
 }
