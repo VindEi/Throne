@@ -65,8 +65,11 @@ namespace Configs
 
         auto mAnnounce = announceRe.match(info);
         if (mAnnounce.hasMatch()) {
-            result.announce = mAnnounce.captured(1).trimmed();
-            result.valid = true;
+            QString ann = mAnnounce.captured(1).trimmed();
+            if (!ann.isEmpty() && ann.compare("base64:", Qt::CaseInsensitive) != 0) {
+                result.announce = ann;
+                result.valid = true;
+            }
         }
 
         return result;

@@ -33,9 +33,6 @@ void MainWindow::show_group(int gid) {
 
     if (group != nullptr) {
         auto subInfo = group->GetSubUserInfo();
-        dataViewHtmlGenerator_.setSubscriptionStatus(group->name, subInfo, group->sub_last_update);
-        UpdateDataView();
-
         int tabIdx = groupId2TabIndex(gid);
         if (tabIdx >= 0) {
             QStringList tip;
@@ -63,7 +60,7 @@ void MainWindow::show_group(int gid) {
                     if (!subInfo.web_url.isEmpty()) {
                         tip << tr("Portal: %1").arg(subInfo.web_url);
                     }
-                    if (!subInfo.announce.isEmpty()) {
+                    if (!subInfo.announce.isEmpty() && subInfo.announce.compare("base64:", Qt::CaseInsensitive) != 0) {
                         tip << tr("Announcement: %1").arg(subInfo.announce);
                     }
                 }
@@ -71,6 +68,7 @@ void MainWindow::show_group(int gid) {
             ui->tabWidget->setTabToolTip(tabIdx, tip.join("\n"));
         }
     }
+
 
 
     if (Configs::dataManager->settingsRepo->current_group != gid) {

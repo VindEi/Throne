@@ -889,10 +889,13 @@ namespace Subscription {
     QString decode3XUIHeader(const QString &raw) {
         QString str = raw.trimmed();
         if (str.startsWith("base64:", Qt::CaseInsensitive)) {
-            QByteArray decoded = QByteArray::fromBase64(str.mid(7).trimmed().toUtf8());
-            if (!decoded.isEmpty()) return QString::fromUtf8(decoded).trimmed();
+            QString b64Str = str.mid(7).trimmed();
+            if (b64Str.isEmpty()) return QString();
+            QByteArray decoded = QByteArray::fromBase64(b64Str.toUtf8());
+            QString result = QString::fromUtf8(decoded).trimmed();
+            return result;
         }
-        return str;
+        return (str.compare("base64:", Qt::CaseInsensitive) == 0) ? QString() : str;
     }
 
 
@@ -990,8 +993,9 @@ void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_ur
             if (!profile_title.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("title=") + profile_title;
             if (!web_page_url.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("web_url=") + web_page_url;
             if (!support_url.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("support_url=") + support_url;
-            if (!announce_msg.isEmpty()) fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("announce=") + announce_msg;
-            
+            if (!announce_msg.isEmpty() && announce_msg.compare("base64:", Qt::CaseInsensitive) != 0) {
+                fullInfo += (fullInfo.isEmpty() ? "" : "; ") + QString("announce=") + announce_msg;
+            }           
             if (!fullInfo.isEmpty()) {
                 group->info = fullInfo;
             }

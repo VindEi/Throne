@@ -183,6 +183,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(themeManager, &ThemeManager::themeChanged, this, [=,this](const QString& theme){
         setLogHighlighter(themeUsesDarkLog(theme));
         scheduleProxyListRefresh();
+        UpdateDataView(true);
     });
     MW_show_log = [=,this](const QString &log) {
         append_log(log);
@@ -1048,7 +1049,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         // QFileDialog defaults to the first filter; config files routinely carry no extension.
         const auto filters = QStringList{
             tr("All files (*)"),
-            tr("Config files (*.json *.conf *.txt *.yaml *.yml *.ini)"),
+            tr("Config files (*.json *.conf *.txt *.yaml *.yml *.ini *.ovpn *.xml)"),
             tr("QR code images (*.png *.jpg *.jpeg *.bmp *.gif *.webp)"),
         };
         const auto paths = QFileDialog::getOpenFileNames(this, tr("Select profile files"), QString(), filters.join(";;"));
@@ -1107,9 +1108,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
-    ui->data_view->document()->setDocumentMargin(0);
-    ui->data_view->setOpenExternalLinks(true);
-
 }
 
 MainWindow::~MainWindow() {
