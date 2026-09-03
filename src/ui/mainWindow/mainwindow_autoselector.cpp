@@ -4,7 +4,7 @@
 
 #include "include/configs/AutoSelectorPlan.h"
 #include "include/database/ProfilesRepo.h"
-
+#include "include/database/GroupsRepo.h"
 #include <QSemaphore>
 
 #include <memory>
@@ -32,6 +32,15 @@ void MainWindow::rank_auto_selector(const std::shared_ptr<Configs::Profile>& ent
 
 void MainWindow::on_subscription_group_changed(int gid, const QList<int>& disturbed) {
     if (gid < 0) return;
+
+    if (m_subInfoCard != nullptr && gid == Configs::dataManager->settingsRepo->current_group) {
+        auto group = Configs::dataManager->groupsRepo->GetGroup(gid);
+        if (group != nullptr) {
+            m_subInfoCard->setGroup(group);
+        }
+    }
+
+
     const QSet<int> disturbedSet(disturbed.begin(), disturbed.end());
     int restartID = -1;
 

@@ -11,6 +11,7 @@
 #include "include/ui/group/dialog_edit_group.h"
 #include "include/ui/mainWindow/MainWindowInternal.h"
 #include "include/ui/mainWindow/TestRunner.h"
+#include "include/ui/widget/SubscriptionInfoCard.hpp"
 
 
 void MainWindow::on_tabWidget_currentChanged(int index) {
@@ -31,46 +32,6 @@ void MainWindow::show_group(int gid) {
         return;
     }
 
-    if (group != nullptr) {
-        auto subInfo = group->GetSubUserInfo();
-        int tabIdx = groupId2TabIndex(gid);
-        if (tabIdx >= 0) {
-            QStringList tip;
-            QString title = subInfo.title.isEmpty() ? group->name : subInfo.title;
-            tip << title;
-            if (!group->url.isEmpty()) {
-                tip << tr("Type: Subscription");
-                if (group->sub_last_update > 0) {
-                    tip << tr("Last updated: %1").arg(DisplayTime(group->sub_last_update, QLocale::ShortFormat));
-                }
-                if (group->sub_update_interval > 0) {
-                    tip << tr("Auto-update: every %1h").arg(group->sub_update_interval);
-                }
-                if (subInfo.valid) {
-                    tip << tr("Used: %1").arg(ReadableSize(subInfo.used()));
-                    if (subInfo.total > 0) {
-                        tip << tr("Total: %1 (Remaining: %2)").arg(ReadableSize(subInfo.total), ReadableSize(subInfo.remaining()));
-                    }
-                    if (subInfo.expire > 0) {
-                        tip << tr("Expires: %1").arg(DisplayTime(subInfo.expire, QLocale::ShortFormat));
-                    }
-                    if (!subInfo.support_url.isEmpty()) {
-                        tip << tr("Support: %1").arg(subInfo.support_url);
-                    }
-                    if (!subInfo.web_url.isEmpty()) {
-                        tip << tr("Portal: %1").arg(subInfo.web_url);
-                    }
-                    if (!subInfo.announce.isEmpty() && subInfo.announce.compare("base64:", Qt::CaseInsensitive) != 0) {
-                        tip << tr("Announcement: %1").arg(subInfo.announce);
-                    }
-                }
-            }
-            ui->tabWidget->setTabToolTip(tabIdx, tip.join("\n"));
-        }
-    }
-
-
-
     if (Configs::dataManager->settingsRepo->current_group != gid) {
         saveProfileFocusState();
         if (auto lastGroup = Configs::dataManager->groupsRepo->CurrentGroup()) {
@@ -83,7 +44,15 @@ void MainWindow::show_group(int gid) {
 
     ui->tabWidget->widget(groupId2TabIndex(gid))->layout()->addWidget(ui->profilesTableView);
 
+    // Update top bar
+    if (m_subInfoCard != nullptr) {
+        m_subInfoCard->setGroup(group);
+    }
+    UpdateDataView(true);
+
     refresh_proxy_list({}, true);
+
+
 
     // scroll_last_profile came from firstVisibleRow(), so it is a proxy row.
     const int rowCount = profilesFilterModel->rowCount();

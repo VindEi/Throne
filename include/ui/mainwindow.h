@@ -37,12 +37,15 @@
 #include <QThreadPool>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QStackedWidget>
 
 #include "group/GroupSort.hpp"
 #include "include/global/GuiUtils.hpp"
 #include "include/ui/utils/DataViewHtmlGenerator.h"
 #include "include/ui/utils/ProfilesFilterProxyModel.h"
 #include "include/ui/utils/ProfilesTableModel.h"
+#include "include/ui/widget/SubscriptionInfoCard.hpp"
+
 #include "ui_mainwindow.h"
 
 #endif
@@ -55,6 +58,8 @@ class TrayProfileSelector;
 class TrayOtpCodes;
 class TestRunner;
 class DialogVpnAuth;
+class QStackedWidget;
+class SubscriptionInfoCard;
 struct VpnAuthChallenge;
 
 struct VpnEndpointState {
@@ -149,6 +154,9 @@ public:
     class DialogAutoSelector *m_autoSelectorDialog = nullptr;
 
     void setDownloadReport(const DownloadProgressReport& report, bool show);
+    QStackedWidget *m_topBarStack = nullptr;
+    SubscriptionInfoCard *m_subInfoCard = nullptr;
+
 
 signals:
 

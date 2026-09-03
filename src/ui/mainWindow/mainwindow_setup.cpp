@@ -23,6 +23,7 @@
 #include "include/ui/stats/dialog_traffic_stats.h"
 #include "include/ui/stats/dialog_runtime_stats.h"
 #include "include/ui/widget/StartStopButton.hpp"
+#include "include/ui/widget/SubscriptionInfoCard.hpp"
 
 #include "include/configs/generate.h"
 #include "include/database/GroupsRepo.h"
@@ -359,6 +360,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         m_autoSelectorDialog->show();
         m_autoSelectorDialog->raise();
         m_autoSelectorDialog->activateWindow();
+        
     });
     connect(ui->actionCheck_For_Update, &QAction::triggered, this, [=,this] { runOnNewThread([=,this] { CheckUpdate(); }); });
     if (!QFile::exists(QApplication::applicationDirPath() + "/updater") && !QFile::exists(QApplication::applicationDirPath() + "/updater.exe"))
@@ -676,7 +678,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
        m_filterRefreshDebounce->start();
     });
     connect(filterHeader, &ProfilesTableFilterHeader::focusTableRequested, this,
-            [this](bool selectFirst) { focusProfilesTable(selectFirst); });
+            [this](bool selectFirst) { focusProfilesTable(selectFirst); 
+    });
+    m_topBarStack = new QStackedWidget(this);
+    m_subInfoCard = new SubscriptionInfoCard(this);
+    ui->horizontalLayout_2->removeWidget(ui->data_view);
+    m_topBarStack->addWidget(m_subInfoCard); // Page 0: Native Subscription Card
+    m_topBarStack->addWidget(ui->data_view);   // Page 1: Live Test & Download Reports
+    ui->horizontalLayout_2->addWidget(m_topBarStack);
+
 
     this->refresh_groups();
 

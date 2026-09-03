@@ -67,10 +67,25 @@ void MainWindow::UpdateDataView(bool force)
     }
     auto html = dataViewHtmlGenerator_.buildHtml();
     runOnUiThread([=, this] {
-        ui->data_view->setHtml(html);
+        if (m_topBarStack != nullptr) {
+            if (!html.isEmpty()) {
+                // Active Speedtest / URL test / Download report -> Show data_view
+                m_topBarStack->setCurrentWidget(ui->data_view);
+                ui->data_view->setHtml(html);
+            } else {
+                // Idle -> Show native Subscription card (0px taken from profile table!)
+                m_topBarStack->setCurrentWidget(m_subInfoCard);
+                if (auto group = Configs::dataManager->groupsRepo->CurrentGroup()) {
+                    m_subInfoCard->setGroup(group);
+                }
+            }
+        } else {
+            ui->data_view->setHtml(html);
+        }
     }, true);
     lastUpdatedMs.store(QDateTime::currentMSecsSinceEpoch());
 }
+
 
 void MainWindow::setDownloadReport(const DownloadProgressReport& report, bool show)
 {
