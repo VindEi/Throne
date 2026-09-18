@@ -102,6 +102,8 @@ set(PROJECT_SOURCES
         src/global/OtpPlaceholder.cpp
         include/global/VpnCredentialOverride.hpp
         src/global/VpnCredentialOverride.cpp
+        include/global/RunningProfiles.hpp
+        src/global/RunningProfiles.cpp
 
         3rdparty/qrcodegen.cpp
         3rdparty/QtExtKeySequenceEdit.cpp
@@ -151,6 +153,9 @@ set(PROJECT_SOURCES
 
         include/sys/ProcessMetrics.hpp
         src/sys/ProcessMetrics.cpp
+
+        include/sys/CoreDiagnostics.hpp
+        src/sys/CoreDiagnostics.cpp
 
         include/sys/UrlScheme.hpp
         src/sys/UrlScheme.cpp
@@ -211,14 +216,13 @@ set(PROJECT_SOURCES
         src/ui/utils/ProfilesTableVerticalHeader.cpp
         include/ui/utils/ProfilesTableFilterHeader.h
         include/ui/utils/ConnectionsFilterHeader.h
-        include/ui/utils/ConnectionsTableModel.h
-        src/ui/utils/ConnectionsTableModel.cpp
-        include/ui/utils/ConnectionsFilterProxyModel.h
-        src/ui/utils/ConnectionsFilterProxyModel.cpp
-        include/ui/utils/ConnectionCloseDelegate.h
-        src/ui/utils/ConnectionCloseDelegate.cpp
+        include/ui/utils/ConnectionsTreeModel.h
+        src/ui/utils/ConnectionsTreeModel.cpp
+        include/ui/utils/ConnectionsTreeFilterProxyModel.h
+        src/ui/utils/ConnectionsTreeFilterProxyModel.cpp
         include/ui/utils/ScreenQrScanner.h
         src/ui/utils/ScreenQrScanner.cpp
+        include/ui/utils/NoWheelComboBox.h
 
         include/ui/profile/dialog_edit_profile.h
         src/ui/profile/dialog_edit_profile.cpp
@@ -302,6 +306,10 @@ set(PROJECT_SOURCES
         src/ui/profile/edit_wireguard_amnezia.cpp
         include/ui/profile/edit_wireguard_amnezia.ui
 
+        include/ui/profile/edit_masque.h
+        src/ui/profile/edit_masque.cpp
+        include/ui/profile/edit_masque.ui
+
         include/ui/profile/editor_table_utils.h
 
         include/ui/profile/edit_openvpn.h
@@ -327,6 +335,10 @@ set(PROJECT_SOURCES
         src/ui/setting/dialog_basic_settings.cpp
         include/ui/setting/dialog_basic_settings.h
         include/ui/setting/dialog_basic_settings.ui
+
+        src/ui/setting/DiagnosticsTab.cpp
+        include/ui/setting/DiagnosticsTab.h
+        include/ui/setting/DiagnosticsTab.ui
 
         src/ui/group/dialog_manage_groups.cpp
         include/ui/group/dialog_manage_groups.h
@@ -364,9 +376,9 @@ set(PROJECT_SOURCES
         src/ui/stats/TrafficChartWidget.cpp
         include/ui/stats/TrafficChartWidget.h
 
-        src/ui/stats/dialog_runtime_stats.cpp
-        include/ui/stats/dialog_runtime_stats.h
-        include/ui/stats/dialog_runtime_stats.ui
+        src/ui/stats/RuntimeStatsWidget.cpp
+        include/ui/stats/RuntimeStatsWidget.h
+        include/ui/stats/RuntimeStatsWidget.ui
         src/ui/stats/dialog_endpoint_details.cpp
         include/ui/stats/dialog_endpoint_details.h
         include/ui/stats/dialog_endpoint_details.ui
@@ -454,6 +466,8 @@ set(PROJECT_SOURCES
         src/configs/outbounds/vless.cpp
         src/configs/outbounds/vmess.cpp
         src/configs/outbounds/wireguard.cpp
+        include/configs/outbounds/masque.h
+        src/configs/outbounds/masque.cpp
         include/configs/outbounds/openvpn.h
         src/configs/outbounds/openvpn.cpp
         include/configs/outbounds/openconnect.h

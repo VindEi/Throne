@@ -1,7 +1,6 @@
 #include "include/ui/widget/SubscriptionInfoCard.hpp"
 
 #include <QHBoxLayout>
-#include <QVBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
 #include <QToolButton>
@@ -12,6 +11,10 @@
 #include <QPainterPath>
 #include <QFontMetrics>
 #include <QResizeEvent>
+#include <QTimer>
+#include <QTableView>
+#include <QHeaderView>
+#include <algorithm>
 
 #include "include/database/entities/Group.h"
 #include "include/database/GroupsRepo.h"
@@ -23,7 +26,7 @@
 
 namespace
 {
-    QPixmap renderVectorPixmap(const QString &kind, const QColor &color, int size = 14)
+    QPixmap renderVectorPixmap(const QString &kind, const QColor &color, int size = 12)
     {
         QPixmap pix(size, size);
         pix.fill(Qt::transparent);
@@ -35,68 +38,68 @@ namespace
 
         if (kind == "globe")
         {
-            p.drawEllipse(QRectF(1.2, 1.2, 11.6, 11.6));
-            p.drawLine(QPointF(1.5, 7.0), QPointF(12.5, 7.0));
-            p.drawEllipse(QRectF(4.4, 1.2, 5.2, 11.6));
+            p.drawEllipse(QRectF(1.0, 1.0, 10.0, 10.0));
+            p.drawLine(QPointF(1.2, 6.0), QPointF(10.8, 6.0));
+            p.drawEllipse(QRectF(3.6, 1.0, 4.8, 10.0));
         }
         else if (kind == "chat")
         {
             QPainterPath path;
-            path.addRoundedRect(QRectF(1.2, 1.5, 11.6, 8.5), 2.0, 2.0);
-            path.moveTo(3.5, 10.0);
-            path.lineTo(2.0, 12.8);
-            path.lineTo(6.5, 10.0);
+            path.addRoundedRect(QRectF(1.0, 1.2, 10.0, 7.2), 1.6, 1.6);
+            path.moveTo(3.0, 8.4);
+            path.lineTo(1.8, 10.8);
+            path.lineTo(5.4, 8.4);
             p.drawPath(path);
-            p.drawLine(QPointF(3.8, 4.5), QPointF(10.2, 4.5));
-            p.drawLine(QPointF(3.8, 7.0), QPointF(8.2, 7.0));
+            p.drawLine(QPointF(3.2, 3.8), QPointF(8.8, 3.8));
+            p.drawLine(QPointF(3.2, 6.0), QPointF(7.2, 6.0));
         }
         else if (kind == "hourglass")
         {
             p.setPen(Qt::NoPen);
             p.setBrush(color);
-            p.drawRoundedRect(QRectF(2.0, 1.0, 10.0, 1.6), 0.6, 0.6);
-            p.drawRoundedRect(QRectF(2.0, 11.4, 10.0, 1.6), 0.6, 0.6);
+            p.drawRoundedRect(QRectF(1.8, 0.8, 8.4, 1.2), 0.5, 0.5);
+            p.drawRoundedRect(QRectF(1.8, 10.0, 8.4, 1.2), 0.5, 0.5);
 
             p.setPen(pen);
             p.setBrush(Qt::NoBrush);
             QPainterPath glass;
-            glass.moveTo(3.4, 2.6);
-            glass.lineTo(10.6, 2.6);
-            glass.cubicTo(QPointF(10.0, 4.8), QPointF(8.2, 5.8), QPointF(8.0, 7.0));
-            glass.cubicTo(QPointF(8.2, 8.2), QPointF(10.0, 9.2), QPointF(10.6, 11.4));
-            glass.lineTo(3.4, 11.4);
-            glass.cubicTo(QPointF(4.0, 9.2), QPointF(5.8, 8.2), QPointF(6.0, 7.0));
-            glass.cubicTo(QPointF(5.8, 5.8), QPointF(4.0, 4.8), QPointF(3.4, 2.6));
+            glass.moveTo(2.8, 2.0);
+            glass.lineTo(9.2, 2.0);
+            glass.cubicTo(QPointF(8.8, 4.0), QPointF(7.2, 5.0), QPointF(7.0, 6.0));
+            glass.cubicTo(QPointF(7.2, 7.0), QPointF(8.8, 8.0), QPointF(9.2, 10.0));
+            glass.lineTo(2.8, 10.0);
+            glass.cubicTo(QPointF(3.2, 8.0), QPointF(4.8, 7.0), QPointF(5.0, 6.0));
+            glass.cubicTo(QPointF(4.8, 5.0), QPointF(3.2, 4.0), QPointF(2.8, 2.0));
             p.drawPath(glass);
 
             p.setPen(Qt::NoPen);
             p.setBrush(color);
             QPainterPath sand;
-            sand.moveTo(4.6, 10.8);
-            sand.lineTo(9.4, 10.8);
-            sand.lineTo(8.2, 8.4);
-            sand.lineTo(5.8, 8.4);
+            sand.moveTo(3.8, 9.5);
+            sand.lineTo(8.2, 9.5);
+            sand.lineTo(7.2, 7.2);
+            sand.lineTo(4.8, 7.2);
             sand.closeSubpath();
             p.drawPath(sand);
 
             p.setPen(pen);
-            p.drawLine(QPointF(7.0, 6.2), QPointF(7.0, 8.4));
+            p.drawLine(QPointF(6.0, 5.2), QPointF(6.0, 7.2));
         }
         else if (kind == "warn")
         {
             QPolygonF tri;
-            tri << QPointF(7.0, 1.2) << QPointF(13.2, 12.5) << QPointF(0.8, 12.5);
+            tri << QPointF(6.0, 0.5) << QPointF(11.5, 10.5) << QPointF(0.5, 10.5);
             p.drawPolygon(tri);
-            p.drawLine(QPointF(7.0, 4.8), QPointF(7.0, 8.2));
-            p.drawPoint(QPointF(7.0, 10.5));
+            p.drawLine(QPointF(6.0, 3.8), QPointF(6.0, 6.8));
+            p.drawPoint(QPointF(6.0, 8.8));
         }
         else if (kind == "info")
         {
-            p.drawEllipse(QRectF(1.5, 1.5, 11.0, 11.0));
+            p.drawEllipse(QRectF(1.0, 1.0, 10.0, 10.0));
             p.setPen(Qt::NoPen);
             p.setBrush(color);
-            p.drawEllipse(QRectF(6.1, 3.5, 1.8, 1.8));
-            p.drawRoundedRect(QRectF(6.2, 6.2, 1.6, 4.0), 0.6, 0.6);
+            p.drawEllipse(QRectF(5.2, 2.8, 1.6, 1.6));
+            p.drawRoundedRect(QRectF(5.3, 5.2, 1.4, 3.4), 0.5, 0.5);
         }
 
         p.end();
@@ -123,53 +126,103 @@ SubscriptionInfoCard::SubscriptionInfoCard(QWidget *parent)
                 setGroup(freshGroup);
             }
         } });
+
+    auto *countdownTimer = new QTimer(this);
+    countdownTimer->setInterval(60000);
+    connect(countdownTimer, &QTimer::timeout, this, [this]
+            {
+        if (isVisible() && hasSubscription()) updateData(); });
+    countdownTimer->start();
 }
 
 void SubscriptionInfoCard::setupUi()
 {
     setObjectName(QStringLiteral("SubscriptionInfoCard"));
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    auto *rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(4, 1, 4, 1);
-    rootLayout->setSpacing(2);
+    auto *row = new QHBoxLayout(this);
+    row->setContentsMargins(8, 4, 8, 4);
+    row->setSpacing(8);
+    row->setAlignment(Qt::AlignVCenter);
 
-    auto *row1 = new QHBoxLayout();
-    row1->setContentsMargins(0, 0, 0, 0);
-    row1->setSpacing(3);
-    row1->setAlignment(Qt::AlignVCenter);
+    auto createButton = [this](const QString &tooltip) -> QToolButton *
+    {
+        auto *btn = new QToolButton(this);
+        btn->setToolTip(tooltip);
+        btn->setCursor(Qt::PointingHandCursor);
+        return btn;
+    };
 
+    // 1. Group Title (Locked to 105px to completely stop horizontal jumping)
     m_titleLabel = new QLabel(this);
     QFont titleFont = m_titleLabel->font();
     titleFont.setBold(true);
     titleFont.setPointSize(8);
     m_titleLabel->setFont(titleFont);
     m_titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    m_titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    row1->addWidget(m_titleLabel, 1);
+    m_titleLabel->setFixedWidth(105);
+    m_titleLabel->setFixedHeight(18);
+    row->addWidget(m_titleLabel);
 
-    m_expiryIcon = new QLabel(this);
-    m_expiryIcon->setFixedSize(13, 13);
-    m_expiryLabel = new QLabel(this);
+    // 2. Hero Progress Bar (Stable 280px width)
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setFixedHeight(18);
+    m_progressBar->setFixedWidth(280);
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setAlignment(Qt::AlignCenter);
+    row->addWidget(m_progressBar);
+
+    // 3. Expiry Pill Badge (Locked 18px height)
+    m_expiryBadge = new QFrame(this);
+    m_expiryBadge->setObjectName(QStringLiteral("subExpiryBadge"));
+    m_expiryBadge->setFixedHeight(18);
+    auto *layExp = new QHBoxLayout(m_expiryBadge);
+    layExp->setContentsMargins(6, 0, 6, 0);
+    layExp->setSpacing(4);
+    layExp->setAlignment(Qt::AlignVCenter);
+
+    m_expiryIcon = new QLabel(m_expiryBadge);
+    m_expiryIcon->setFixedSize(12, 12);
+    m_expiryLabel = new QLabel(m_expiryBadge);
     QFont expFont = m_expiryLabel->font();
     expFont.setPointSize(8);
     m_expiryLabel->setFont(expFont);
-    m_expiryLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    row1->addWidget(m_expiryIcon);
-    row1->addWidget(m_expiryLabel);
-    row1->addSpacing(10);
+    layExp->addWidget(m_expiryIcon);
+    layExp->addWidget(m_expiryLabel);
+    row->addWidget(m_expiryBadge);
 
-    auto createButton = [this](const QString &tooltip) -> QToolButton *
-    {
-        auto *btn = new QToolButton(this);
-        btn->setFixedSize(22, 18);
-        btn->setToolTip(tooltip);
-        btn->setCursor(Qt::PointingHandCursor);
-        return btn;
-    };
+    // 4. Clickable Announcement Pill Chip (Whole chip is clickable, no squished button inside)
+    m_announceBadge = new QFrame(this);
+    m_announceBadge->setObjectName(QStringLiteral("subAnnounceBadge"));
+    m_announceBadge->setFixedHeight(18);
+    m_announceBadge->setCursor(Qt::PointingHandCursor);
+    m_announceBadge->installEventFilter(this);
 
+    auto *layAnn = new QHBoxLayout(m_announceBadge);
+    layAnn->setContentsMargins(6, 0, 6, 0);
+    layAnn->setSpacing(5);
+    layAnn->setAlignment(Qt::AlignVCenter);
+
+    m_announceIcon = new QLabel(m_announceBadge);
+    m_announceIcon->setFixedSize(12, 12);
+    m_announceIcon->setAlignment(Qt::AlignCenter);
+
+    m_announceLabel = new QLabel(m_announceBadge);
+    QFont annFont = m_announceLabel->font();
+    annFont.setPointSize(8);
+    m_announceLabel->setFont(annFont);
+
+    layAnn->addWidget(m_announceIcon);
+    layAnn->addWidget(m_announceLabel);
+    row->addWidget(m_announceBadge);
+
+    // Spacer between data and right actions
+    row->addStretch(1);
+
+    // 5. Portal Button (Locked 18px height)
     m_btnPortal = createButton(tr("Website / Portal"));
+    m_btnPortal->setFixedSize(22, 18);
     connect(m_btnPortal, &QToolButton::clicked, this, [this]
             {
         if (m_group) {
@@ -177,9 +230,11 @@ void SubscriptionInfoCard::setupUi()
             if (!sub.web_url.isEmpty()) QDesktopServices::openUrl(QUrl(sub.web_url));
         } });
     m_btnPortal->hide();
-    row1->addWidget(m_btnPortal);
+    row->addWidget(m_btnPortal);
 
+    // 6. Support Button (Locked 18px height)
     m_btnSupport = createButton(tr("Technical Support"));
+    m_btnSupport->setFixedSize(22, 18);
     connect(m_btnSupport, &QToolButton::clicked, this, [this]
             {
         if (m_group) {
@@ -187,46 +242,44 @@ void SubscriptionInfoCard::setupUi()
             if (!sub.support_url.isEmpty()) QDesktopServices::openUrl(QUrl(sub.support_url));
         } });
     m_btnSupport->hide();
-    row1->addWidget(m_btnSupport);
+    row->addWidget(m_btnSupport);
+}
 
-    rootLayout->addLayout(row1);
+void SubscriptionInfoCard::setTableView(QTableView *table)
+{
+    m_tableView = table;
+    if (!m_tableView)
+        return;
 
-    m_progressBar = new QProgressBar(this);
-    m_progressBar->setFixedHeight(15);
-    m_progressBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_progressBar->setTextVisible(true);
-    m_progressBar->setAlignment(Qt::AlignCenter);
-    rootLayout->addWidget(m_progressBar);
+    if (auto *vHeader = m_tableView->verticalHeader())
+    {
+        connect(vHeader, &QHeaderView::geometriesChanged, this, &SubscriptionInfoCard::syncTableOffset);
+    }
+    syncTableOffset();
+}
 
-    m_bottomRow = new QFrame(this);
-    m_bottomRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    auto *row3 = new QHBoxLayout(m_bottomRow);
-    row3->setContentsMargins(0, 0, 0, 0);
-    row3->setSpacing(6);
-    row3->setAlignment(Qt::AlignVCenter);
+void SubscriptionInfoCard::syncTableOffset()
+{
+    if (!m_tableView || !isVisible())
+        return;
 
-    m_bottomLabel = new QLabel(m_bottomRow);
-    QFont btmFont = m_bottomLabel->font();
-    btmFont.setPointSize(8);
-    m_bottomLabel->setFont(btmFont);
-    m_bottomLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    row3->addWidget(m_bottomLabel, 1);
+    int vhWidth = 0;
+    if (auto *vHeader = m_tableView->verticalHeader())
+    {
+        if (vHeader->isVisible())
+            vhWidth = vHeader->width();
+    }
+    layout()->setContentsMargins(vhWidth + 4, 4, 8, 4);
+}
 
-    m_btnAnnounceMore = createButton(tr("View full announcement"));
-    m_btnAnnounceMore->setFixedSize(18, 16);
-    connect(m_btnAnnounceMore, &QToolButton::clicked, this, [this]
-            {
-        if (m_group) {
-            auto sub = m_group->GetSubUserInfo();
-            if (!sub.announce.isEmpty()) {
-                QString title = !sub.title.isEmpty() ? sub.title : m_group->name;
-                MessageBoxScrollable(tr("Announcement - %1").arg(title), sub.announce);
-            }
-        } });
-    m_btnAnnounceMore->hide();
-    row3->addWidget(m_btnAnnounceMore);
+QSize SubscriptionInfoCard::sizeHint() const
+{
+    return {QFrame::sizeHint().width(), 26};
+}
 
-    rootLayout->addWidget(m_bottomRow);
+QSize SubscriptionInfoCard::minimumSizeHint() const
+{
+    return {0, 26};
 }
 
 bool SubscriptionInfoCard::hasSubscription() const
@@ -243,41 +296,78 @@ void SubscriptionInfoCard::setGroup(const std::shared_ptr<Configs::Group> &group
 void SubscriptionInfoCard::resizeEvent(QResizeEvent *event)
 {
     QFrame::resizeEvent(event);
+    syncTableOffset();
     updateAnnouncementLayout();
+}
+
+void SubscriptionInfoCard::changeEvent(QEvent *event)
+{
+    QFrame::changeEvent(event);
+    if (event->type() == QEvent::FontChange)
+    {
+        updateData();
+    }
+}
+
+bool SubscriptionInfoCard::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_announceBadge && event->type() == QEvent::MouseButtonRelease)
+    {
+        if (m_group)
+        {
+            auto sub = m_group->GetSubUserInfo();
+            if (!sub.announce.isEmpty())
+            {
+                QString title = !sub.title.isEmpty() ? sub.title : m_group->name;
+                MessageBoxScrollable(tr("Announcement - %1").arg(title), sub.announce);
+                return true;
+            }
+        }
+    }
+    return QFrame::eventFilter(watched, event);
 }
 
 void SubscriptionInfoCard::updateAnnouncementLayout()
 {
     if (m_fullAnnounce.isEmpty())
     {
-        m_bottomRow->hide();
+        m_announceBadge->hide();
         return;
     }
 
-    m_bottomRow->show();
-    QFontMetrics fm(m_bottomLabel->font());
+    m_announceBadge->show();
 
-    int availWidth = m_bottomRow->width() - 16;
-    if (availWidth <= 50)
+    // Dynamically calculate available width for the announcement chip
+    int usedWidth = layout()->contentsMargins().left() + layout()->contentsMargins().right();
+    usedWidth += m_titleLabel->width() + m_progressBar->width();
+    if (m_expiryBadge->isVisible())
+    {
+        usedWidth += m_expiryBadge->sizeHint().width() + layout()->spacing();
+    }
+    if (m_btnPortal->isVisible())
+    {
+        usedWidth += m_btnPortal->width() + layout()->spacing();
+    }
+    if (m_btnSupport->isVisible())
+    {
+        usedWidth += m_btnSupport->width() + layout()->spacing();
+    }
+    usedWidth += 3 * layout()->spacing();
+
+    const int avail = width() - usedWidth;
+    if (avail <= 60)
+    {
+        m_announceBadge->hide();
         return;
-
-    QString fullTextWithBullet = QStringLiteral("• %1").arg(m_fullAnnounce);
-    int fullWidth = fm.horizontalAdvance(fullTextWithBullet);
-
-    if (fullWidth <= availWidth)
-    {
-        m_bottomLabel->setText(fullTextWithBullet);
-        m_btnAnnounceMore->hide();
     }
-    else
-    {
-        m_btnAnnounceMore->show();
-        int btnWidth = m_btnAnnounceMore->width() > 0 ? m_btnAnnounceMore->width() : 18;
-        int textAvailWidth = availWidth - btnWidth - 10;
 
-        QString elided = fm.elidedText(m_fullAnnounce, Qt::ElideRight, textAvailWidth);
-        m_bottomLabel->setText(QStringLiteral("• %1").arg(elided));
-    }
+    // Cap the announcement pill up to 300px, but shrink it if the screen narrows
+    const int maxPillWidth = qBound(80, avail, 300);
+    const int textAvail = maxPillWidth - 12 - 12; // icon + padding
+
+    QFontMetrics fm(m_announceLabel->font());
+    m_announceLabel->setText(fm.elidedText(m_fullAnnounce, Qt::ElideRight, textAvail));
+    m_announceBadge->setMaximumWidth(maxPillWidth);
 }
 
 void SubscriptionInfoCard::updateData()
@@ -294,140 +384,194 @@ void SubscriptionInfoCard::updateData()
     const bool isDark = (winBg.lightness() <= 128);
 
     const QString textPrimary = isDark ? QStringLiteral("#F3F4F6") : QStringLiteral("#111827");
-    const QString textSecondary = isDark ? QStringLiteral("#D1D5DB") : QStringLiteral("#374151");
-    const QString trackColor = isDark ? QStringLiteral("#1E2630") : QStringLiteral("#E9ECEF");
-    const QString borderColor = isDark ? QStringLiteral("#455364") : QStringLiteral("#CBD5E1");
+    const QString textSecondary = isDark ? QStringLiteral("#9CA3AF") : QStringLiteral("#4B5563");
+    const QString trackColor = isDark ? QStringLiteral("#1E2630") : QStringLiteral("#E2E8F0");
+    const QString borderColor = isDark ? QStringLiteral("#3E4C5F") : QStringLiteral("#CBD5E1");
 
+    // 1. Group Title (105px fixed width)
     QString title = !sub.title.isEmpty() ? sub.title : m_group->name;
-    m_titleLabel->setText(title);
+    QFontMetrics titleFm(m_titleLabel->font());
+    m_titleLabel->setText(titleFm.elidedText(title, Qt::ElideRight, m_titleLabel->width()));
     m_titleLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textPrimary));
 
+    QString tooltip = title;
+    if (m_group->sub_update_interval > 0)
+    {
+        tooltip += QStringLiteral("\n") + tr("Auto-update: every %1 hours").arg(m_group->sub_update_interval);
+    }
+    if (m_group->sub_last_update > 0)
+    {
+        tooltip += QStringLiteral("\n") + tr("Last updated: %1").arg(DisplayTime(m_group->sub_last_update, QLocale::ShortFormat));
+    }
+    m_titleLabel->setToolTip(tooltip);
+    m_progressBar->setToolTip(tooltip);
+
+    // 2. Hero Quota Progress Bar (280px fixed width)
+    if (!sub.valid)
+    {
+        m_progressBar->hide();
+    }
+    else
+    {
+        m_progressBar->show();
+
+        QString usedStr = ReadableSize(sub.used());
+        QString totalStr = (sub.total > 0) ? ReadableSize(sub.total) : QString::fromUtf8("∞");
+        double pct = sub.percentUsed();
+
+        QColor barColor;
+        if (sub.isExpired())
+        {
+            barColor = tk.danger;
+        }
+        else if (sub.total <= 0)
+        {
+            barColor = isDark ? QColor(0x16, 0xA3, 0x4A) : QColor(0x15, 0x80, 0x3D);
+        }
+        else
+        {
+            const double hue = std::clamp(120.0 * (1.0 - (pct / 100.0)), 0.0, 120.0);
+            barColor = QColor::fromHsv(static_cast<int>(hue), 190, isDark ? 215 : 175);
+        }
+
+        if (sub.total > 0)
+        {
+            m_progressBar->setRange(0, 100);
+            m_progressBar->setValue(static_cast<int>(pct));
+            m_progressBar->setFormat(QStringLiteral("%1 / %2 (%3%)").arg(usedStr, totalStr, QString::number(static_cast<int>(pct))));
+        }
+        else
+        {
+            m_progressBar->setRange(0, 100);
+            m_progressBar->setValue(100);
+            m_progressBar->setFormat(QStringLiteral("%1 / ∞").arg(usedStr));
+        }
+
+        const QString textColor = (pct >= 45.0 || sub.total <= 0) ? QStringLiteral("#FFFFFF") : textPrimary;
+
+        m_progressBar->setStyleSheet(QStringLiteral(
+                                         "QProgressBar {"
+                                         "  border: 1px solid %1;"
+                                         "  border-radius: 3px;"
+                                         "  text-align: center;"
+                                         "  font-weight: bold;"
+                                         "  font-size: 8pt;"
+                                         "  line-height: 1;"
+                                         "  color: %2;"
+                                         "  background-color: %3;"
+                                         "}"
+                                         "QProgressBar::chunk {"
+                                         "  background-color: %4;"
+                                         "  border-radius: 2px;"
+                                         "}")
+                                         .arg(borderColor, textColor, trackColor, barColor.name()));
+    }
+
+    // 3. Expiry Badge
     if (sub.expire > 0)
     {
         qint64 now = QDateTime::currentSecsSinceEpoch();
         qint64 diffSecs = sub.expire - now;
         qint64 diffDays = diffSecs / 86400;
 
+        QString expText;
+        QColor badgeTextColor;
+        QString badgeBg;
+        QString badgeBorder;
+
         if (sub.isExpired())
         {
-            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 13));
-            m_expiryLabel->setText(tr("Expired"));
-            m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(tk.danger.name()));
+            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
+            expText = tr("Expired");
+            badgeTextColor = tk.danger;
+            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
+            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
+        }
+        else if (diffSecs < 3600)
+        {
+            qint64 minutes = std::max<qint64>(1, diffSecs / 60);
+            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
+            expText = QStringLiteral("%1m left").arg(minutes);
+            badgeTextColor = tk.danger;
+            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
+            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
         }
         else if (diffSecs < 86400)
         {
             qint64 hours = std::max<qint64>(1, diffSecs / 3600);
-            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 13));
-            m_expiryLabel->setText(QStringLiteral("%1h left").arg(hours));
-            m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(tk.danger.name()));
+            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
+            expText = QStringLiteral("%1h left").arg(hours);
+            badgeTextColor = tk.danger;
+            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
+            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
         }
         else if (diffDays <= 3)
         {
-            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 13));
-            m_expiryLabel->setText(QStringLiteral("%1d left").arg(diffDays));
-            m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(tk.danger.name()));
+            m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
+            expText = QStringLiteral("%1d left").arg(diffDays);
+            badgeTextColor = tk.danger;
+            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.12)") : QStringLiteral("rgba(239, 68, 68, 0.08)");
+            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.3)") : QStringLiteral("rgba(239, 68, 68, 0.2)");
         }
         else
         {
-            m_expiryIcon->setPixmap(renderVectorPixmap("hourglass", QColor(textSecondary), 13));
-            m_expiryLabel->setText(QStringLiteral("%1d left").arg(diffDays));
-            m_expiryLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
+            m_expiryIcon->setPixmap(renderVectorPixmap("hourglass", QColor(textSecondary), 12));
+            expText = QStringLiteral("%1d left").arg(diffDays);
+            badgeTextColor = QColor(textSecondary);
+            badgeBg = isDark ? QStringLiteral("rgba(255, 255, 255, 0.04)") : QStringLiteral("rgba(0, 0, 0, 0.03)");
+            badgeBorder = borderColor;
         }
-        m_expiryIcon->show();
-        m_expiryLabel->show();
+
+        m_expiryLabel->setText(expText);
+        m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(badgeTextColor.name()));
+        m_expiryBadge->setStyleSheet(QStringLiteral(
+                                         "QFrame#subExpiryBadge {"
+                                         "  background-color: %1;"
+                                         "  border: 1px solid %2;"
+                                         "  border-radius: 3px;"
+                                         "}")
+                                         .arg(badgeBg, badgeBorder));
+
+        m_expiryBadge->setToolTip(tr("Expires: %1").arg(DisplayTime(sub.expire, QLocale::ShortFormat)));
+        m_expiryBadge->show();
     }
     else
     {
-        m_expiryIcon->setPixmap(renderVectorPixmap("hourglass", QColor(textSecondary), 13));
-        m_expiryLabel->setText(QStringLiteral("∞ left"));
-        m_expiryLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
-        m_expiryIcon->show();
-        m_expiryLabel->show();
+        m_expiryBadge->hide();
     }
 
-    const bool hasWeb = !sub.web_url.isEmpty() && (sub.web_url.startsWith("http://", Qt::CaseInsensitive) || sub.web_url.startsWith("https://", Qt::CaseInsensitive));
-    const bool hasSupport = !sub.support_url.isEmpty() && (sub.support_url.startsWith("http://", Qt::CaseInsensitive) || sub.support_url.startsWith("https://", Qt::CaseInsensitive));
-    m_btnPortal->setVisible(hasWeb);
-    m_btnSupport->setVisible(hasSupport);
-
-    QString usedStr = ReadableSize(sub.used());
-    QString totalStr = (sub.total > 0) ? ReadableSize(sub.total) : QString::fromUtf8("∞");
-    double pct = sub.percentUsed();
-
-    QString barColor;
-    if (sub.isExpired() || pct >= 90.0)
-        barColor = tk.danger.name();
-    else if (pct >= 75.0)
-        barColor = tk.tag.name();
-    else if (pct >= 50.0)
-        barColor = tk.accent.name();
-    else
-        barColor = tk.success.name();
-
-    if (sub.total > 0)
-    {
-        m_progressBar->setRange(0, 100);
-        m_progressBar->setValue(static_cast<int>(pct));
-        m_progressBar->setFormat(QStringLiteral("%1 / %2 (%3%)").arg(usedStr, totalStr, QString::number(static_cast<int>(pct))));
-    }
-    else
-    {
-        m_progressBar->setRange(0, 100);
-        m_progressBar->setValue(100);
-        m_progressBar->setFormat(QStringLiteral("%1 / ∞").arg(usedStr));
-    }
-
-    m_progressBar->setStyleSheet(QStringLiteral(
-                                     "QProgressBar {"
-                                     "  border: 1px solid %1;"
-                                     "  border-radius: 4px;"
-                                     "  text-align: center;"
-                                     "  font-weight: bold;"
-                                     "  font-size: 7.5pt;"
-                                     "  line-height: 1;"
-                                     "  color: %2;"
-                                     "  background-color: %3;"
-                                     "}"
-                                     "QProgressBar::chunk {"
-                                     "  background-color: %4;"
-                                     "  border-radius: 3px;"
-                                     "}")
-                                     .arg(borderColor, (pct >= 50.0 && sub.total > 0) ? QStringLiteral("#FFFFFF") : textPrimary, trackColor, barColor));
+    // 4. Announcement Pill Badge
     const QString cleanAnnounce = sub.announce.trimmed();
     const bool hasAnnounce = !cleanAnnounce.isEmpty() && cleanAnnounce.compare("base64:", Qt::CaseInsensitive) != 0;
 
     if (hasAnnounce)
     {
         m_fullAnnounce = cleanAnnounce;
-        m_bottomLabel->setToolTip(cleanAnnounce);
-        m_bottomLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
+        m_announceBadge->setToolTip(cleanAnnounce);
+        m_announceLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
         updateAnnouncementLayout();
     }
     else
     {
         m_fullAnnounce.clear();
-        m_btnAnnounceMore->hide();
-        if (m_group->sub_update_interval > 0)
-        {
-            m_bottomLabel->setText(tr("Auto-update: %1h").arg(m_group->sub_update_interval));
-            m_bottomLabel->setToolTip(QString());
-            m_bottomLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
-            m_bottomRow->show();
-        }
-        else if (m_group->sub_last_update > 0)
-        {
-            m_bottomLabel->setText(tr("Updated: %1").arg(DisplayTime(m_group->sub_last_update, QLocale::ShortFormat)));
-            m_bottomLabel->setToolTip(QString());
-            m_bottomLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
-            m_bottomRow->show();
-        }
-        else
-        {
-            m_bottomRow->hide();
-        }
+        m_announceBadge->hide();
     }
 
+    // 5. Portal / Support Buttons
+    const bool hasWeb = !sub.web_url.isEmpty() && (sub.web_url.startsWith("http://", Qt::CaseInsensitive) || sub.web_url.startsWith("https://", Qt::CaseInsensitive));
+    const bool hasSupport = !sub.support_url.isEmpty() && (sub.support_url.startsWith("http://", Qt::CaseInsensitive) || sub.support_url.startsWith("https://", Qt::CaseInsensitive) || sub.support_url.startsWith("tg://", Qt::CaseInsensitive));
+
+    m_btnPortal->setVisible(hasWeb);
+    if (hasWeb)
+        m_btnPortal->setToolTip(tr("Website / Portal: %1").arg(sub.web_url));
+
+    m_btnSupport->setVisible(hasSupport);
+    if (hasSupport)
+        m_btnSupport->setToolTip(tr("Technical Support: %1").arg(sub.support_url));
+
+    setFixedHeight(26);
     show();
+    syncTableOffset();
 }
 
 void SubscriptionInfoCard::applyTheme()
@@ -436,24 +580,39 @@ void SubscriptionInfoCard::applyTheme()
     const QColor winBg = qApp->palette().color(QPalette::Active, QPalette::Window);
     const bool isDark = (winBg.lightness() <= 128);
 
-    const QString chipBg = isDark ? QStringLiteral("#1E293B") : QStringLiteral("#F1F5F9");
-    const QString chipBorder = isDark ? QStringLiteral("#334155") : QStringLiteral("#CBD5E1");
+    const QString barBg = winBg.name();
+    const QString chipBg = isDark ? QStringLiteral("#24303F") : QStringLiteral("#FFFFFF");
+    const QString chipBorder = isDark ? QStringLiteral("#3E4C5F") : QStringLiteral("#CBD5E1");
+    const QString hoverBg = isDark ? QStringLiteral("#2A374A") : QStringLiteral("#E2E8F0");
 
     setStyleSheet(QStringLiteral(
-                      "QFrame#SubscriptionInfoCard { background: transparent; border: none; }"
-                      "QToolButton {"
+                      "QFrame#SubscriptionInfoCard {"
                       "  background-color: %1;"
-                      "  border: 1px solid %2;"
-                      "  border-radius: 4px;"
-                      "  padding: 1px;"
+                      "  border: none;"
+                      "}"
+                      "QFrame#subAnnounceBadge {"
+                      "  background-color: %2;"
+                      "  border: 1px solid %3;"
+                      "  border-radius: 3px;"
+                      "}"
+                      "QFrame#subAnnounceBadge:hover {"
+                      "  background-color: %4;"
+                      "  border-color: %5;"
+                      "}"
+                      "QToolButton {"
+                      "  background-color: %2;"
+                      "  border: 1px solid %3;"
+                      "  border-radius: 3px;"
+                      "  padding: 1px 4px;"
+                      "  color: %6;"
                       "}"
                       "QToolButton:hover {"
-                      "  background-color: %3;"
-                      "  border-color: %4;"
+                      "  background-color: %4;"
+                      "  border-color: %5;"
                       "}")
-                      .arg(chipBg, chipBorder, tk.hoverFill.name(), tk.accent.name()));
+                      .arg(barBg, chipBg, chipBorder, hoverBg, tk.accent.name(), tk.onSurface.name()));
 
-    m_btnPortal->setIcon(QIcon(renderVectorPixmap("globe", tk.onSurface, 13)));
-    m_btnSupport->setIcon(QIcon(renderVectorPixmap("chat", tk.onSurface, 13)));
-    m_btnAnnounceMore->setIcon(QIcon(renderVectorPixmap("info", tk.onSurface, 14)));
+    m_announceIcon->setPixmap(renderVectorPixmap("info", tk.accent, 12));
+    m_btnPortal->setIcon(QIcon(renderVectorPixmap("globe", tk.onSurface, 12)));
+    m_btnSupport->setIcon(QIcon(renderVectorPixmap("chat", tk.onSurface, 12)));
 }

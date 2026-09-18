@@ -41,13 +41,12 @@ void MainWindow::show_group(int gid) {
         Configs::dataManager->settingsRepo->Save();
     }
 
-    ui->tabWidget->widget(groupId2TabIndex(gid))->layout()->addWidget(ui->profilesTableView);
+    ui->tabWidget->widget(groupId2TabIndex(gid))->layout()->addWidget(m_tableContainer);
 
-    // Update top bar subscription card
+    // Update subscription card
     if (m_subInfoCard != nullptr) {
         m_subInfoCard->setGroup(group);
     }
-    UpdateDataView(true);
 
     // Update tab tooltip
     int tabIdx = groupId2TabIndex(gid);
@@ -93,7 +92,6 @@ void MainWindow::show_group(int gid) {
         }
     }
 
-
     refresh_proxy_list({}, true);
 
     // scroll_last_profile came from firstVisibleRow(), so it is a proxy row.
@@ -127,7 +125,7 @@ void MainWindow::refresh_groups() {
         } else {
             auto widget2 = new QWidget();
             auto layout2 = new QVBoxLayout();
-            layout2->setContentsMargins(QMargins());
+            layout2->setContentsMargins(1, 0, 1, 0);
             layout2->setSpacing(0);
             widget2->setLayout(layout2);
             ui->tabWidget->addTab(widget2, group->name);

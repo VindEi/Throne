@@ -1,10 +1,11 @@
 #include <QThread>
 #include <QDateTime>
-#include <core/server/gen/libcore.pb.h>
+#include <core/gen/libcore.pb.h>
 #include <include/api/RPC.h>
 #include "include/ui/mainwindow_interface.h"
 #include <include/stats/connections/connectionLister.hpp>
 #include "include/stats/traffic/TrafficStatsManager.hpp"
+#include "include/global/LocalNetwork.hpp"
 
 #include <algorithm>
 
@@ -63,7 +64,18 @@ namespace Stats
         }
     }
 
-    static ConnectionMetadata metaFromProto(const libcore::ConnectionMetaData& conn)
+    QString EndpointHost(const QString& endpoint)
+    {
+        if (endpoint.startsWith('['))
+        {
+            const auto close = endpoint.indexOf(']');
+            return close > 0 ? endpoint.mid(1, close - 1) : endpoint.mid(1);
+        }
+        const auto colon = endpoint.lastIndexOf(':');
+        return colon < 0 ? endpoint : endpoint.left(colon);
+    }
+
+    static ConnectionMetadata metaFromProto(const libcore::ConnectionMetaData& conn, const QString& localLabel)
     {
         ConnectionMetadata c;
         c.id = QString::fromStdString(conn.id.value());
@@ -78,6 +90,10 @@ namespace Stats
         c.processPath = QString::fromStdString(conn.process_path.value());
         c.protocol = QString::fromStdString(conn.protocol.value());
         c.closedAtMs = conn.closed_at.value();
+        c.source = QString::fromStdString(conn.source.value());
+        // In tun mode our own traffic enters with the tun's (or this machine's LAN) address, so a loopback-only test would label it a LAN client.
+        const QString host = EndpointHost(c.source);
+        c.sourceDisplay = host.isEmpty() || LocalNetwork::IsOwnAddress(host) ? localLabel : host;
         return c;
     }
 
@@ -110,10 +126,27 @@ namespace Stats
         }
     }
 
+    bool SortIsDescending(const ConnectionSort sort, const bool ascending)
+    {
+        switch (sort)
+        {
+        case Default:
+            return false;
+        case ByProcess:
+        case ByOutbound:
+        case ByProtocol:
+        case BySource:
+            return ascending;
+        default:
+            return !ascending;
+        }
+    }
+
     void ConnectionLister::update(const bool pushToUi)
     {
         libcore::QueryConnectionsResp resp = API::defaultClient->QueryConnections();
         const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        const QString localLabel = QObject::tr("Local");
 
         QList<ConnectionMetadata> rows;
         rows.reserve(static_cast<qsizetype>(resp.active.size()));
@@ -122,7 +155,7 @@ namespace Stats
 
         for (const auto& conn : resp.active)
         {
-            auto c = metaFromProto(conn);
+            auto c = metaFromProto(conn, localLabel);
 
             SpeedSample s;
             if (const auto it = speedSamples_.constFind(c.id); it != speedSamples_.constEnd())
@@ -236,6 +269,9 @@ namespace Stats
             break;
         case ByProtocol:
             sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.protocol; });
+            break;
+        case BySource:
+            sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.sourceDisplay; });
             break;
         }
 

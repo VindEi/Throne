@@ -5,17 +5,18 @@
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QPainter>
+#include <QStyle>
 #include <QToolButton>
 
-#include "include/ui/utils/ConnectionsTableModel.h"
+#include "include/ui/utils/ConnectionsTreeModel.h"
 
-// Filter row over the connections table; traffic/speed hold formatted byte counts, so they get no field.
 class ConnectionsFilterHeader : public QHeaderView {
     Q_OBJECT
 public:
     struct Filters {
-        QString dest;
-        QString process;
+        QString source;
+        QString target;
         QString protocol;
         QString outbound;
     };
@@ -25,8 +26,8 @@ public:
         setSectionsClickable(true);
         setDefaultAlignment(Qt::AlignHCenter | Qt::AlignTop);
 
-        dest_filter = makeEdit();
-        process_filter = makeEdit();
+        target_filter = makeEdit();
+        source_filter = makeEdit();
         protocol_filter = makeEdit();
         outbound_filter = makeEdit();
 
@@ -37,9 +38,24 @@ public:
 
     bool filtersVisible() const { return m_filtersVisible; }
 
+    void clearFilterFor(int column) {
+        if (QLineEdit *edit = editForColumn(column)) edit->clear();
+    }
+
     Filters filters() const {
-        return {dest_filter->text(), process_filter->text(),
-                protocol_filter->text(), outbound_filter->text()};
+        return {textFor(ConnectionsTreeModel::ColSource), textFor(ConnectionsTreeModel::ColTarget),
+                textFor(ConnectionsTreeModel::ColProtocol), textFor(ConnectionsTreeModel::ColOutbound)};
+    }
+
+    // Marks the sorted section with an arrow past its label; the room reserved for it keeps it off a narrow column's text.
+    void setSortSection(int section, bool descending) {
+        if (section == m_sortSection && descending == m_sortDescending) return;
+        const int previous = m_sortSection;
+        m_sortSection = section;
+        m_sortDescending = descending;
+        if (previous != section) resizeSections();
+        if (previous >= 0) updateSection(previous);
+        if (section >= 0) updateSection(section);
     }
 
     QSize sizeHint() const override {
@@ -54,10 +70,31 @@ protected:
     // Protocol/Outbound are ResizeToContents, so without a floor their fields shrink to the header label's width.
     QSize sectionSizeFromContents(int logicalIndex) const override {
         QSize s = QHeaderView::sectionSizeFromContents(logicalIndex);
+        if (logicalIndex == m_sortSection) {
+            s.rwidth() += 2 * kSortArrowRoom;
+        }
         if (m_filtersVisible && editForColumn(logicalIndex) != nullptr) {
             s.setWidth(qMax(s.width(), 120));
         }
         return s;
+    }
+
+    void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const override {
+        QHeaderView::paintSection(painter, rect, logicalIndex);
+        if (logicalIndex != m_sortSection) return;
+
+        // The label is top-aligned, so the arrow sits on its line just past the text.
+        const QFontMetrics metrics(font());
+        const QString label = model() ? model()->headerData(logicalIndex, orientation()).toString() : QString();
+        const qreal x = qMin(rect.center().x() + metrics.horizontalAdvance(label) / 2.0 + 10, rect.right() - 6.0);
+        const qreal y = rect.top() + style()->pixelMetric(QStyle::PM_HeaderMargin, nullptr, this) + metrics.height() / 2.0;
+        const qreal tip = m_sortDescending ? 2.5 : -2.5;
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(palette().color(QPalette::Highlight));
+        painter->drawPolygon(QPolygonF{{x - 4, y - tip}, {x + 4, y - tip}, {x, y + tip}});
+        painter->restore();
     }
 
     void updateGeometries() override {
@@ -89,7 +126,6 @@ public slots:
     void setFiltersVisible(bool visible) {
         m_filtersVisible = visible;
 
-        // Hiding must clear, or the list stays filtered with nothing explaining why.
         if (!visible) {
             for (QLineEdit *edit : filterEdits()) edit->clear();
         }
@@ -102,24 +138,32 @@ public slots:
 
         resizeSections();
         emit geometriesChanged();
+        adjustPositions();
 
         // Tab/Backtab/Shortcut focus reasons make QLineEdit select all; OtherFocusReason does not.
-        if (visible) dest_filter->setFocus(Qt::OtherFocusReason);
+        if (visible) {
+            target_filter->setFocus(Qt::OtherFocusReason);
+        }
     }
 
     void adjustPositions() {
-        if (!m_filtersVisible || count() < ConnectionsTableModel::ColumnCount) return;
+        if (!m_filtersVisible || count() < ConnectionsTreeModel::ColumnCount) return;
 
         const int editHeight = 24;
         const int topPos = height() - editHeight - 4;
 
         auto place = [&](QLineEdit *edit, int section) {
+            if (isSectionHidden(section)) {
+                edit->hide();
+                return;
+            }
+            edit->show();
             edit->setGeometry(sectionViewportPosition(section) + 2, topPos, sectionSize(section) - 4, editHeight);
         };
-        place(dest_filter, ConnectionsTableModel::ColDest);
-        place(process_filter, ConnectionsTableModel::ColProcess);
-        place(protocol_filter, ConnectionsTableModel::ColProtocol);
-        place(outbound_filter, ConnectionsTableModel::ColOutbound);
+        place(target_filter, ConnectionsTreeModel::ColTarget);
+        place(source_filter, ConnectionsTreeModel::ColSource);
+        place(protocol_filter, ConnectionsTreeModel::ColProtocol);
+        place(outbound_filter, ConnectionsTreeModel::ColOutbound);
     }
 
 signals:
@@ -128,6 +172,8 @@ signals:
     void closeRequested();
 
 private:
+    static constexpr int kSortArrowRoom = 14;
+
     QLineEdit *makeEdit() {
         auto *edit = new QLineEdit(this->viewport());
         edit->setPlaceholderText(tr("Filter..."));
@@ -139,16 +185,23 @@ private:
 
     QLineEdit *editForColumn(int column) const {
         switch (column) {
-        case ConnectionsTableModel::ColDest:     return dest_filter;
-        case ConnectionsTableModel::ColProcess:  return process_filter;
-        case ConnectionsTableModel::ColProtocol: return protocol_filter;
-        case ConnectionsTableModel::ColOutbound: return outbound_filter;
-        default:                                 return nullptr;
+        case ConnectionsTreeModel::ColTarget:   return target_filter;
+        case ConnectionsTreeModel::ColSource:   return source_filter;
+        case ConnectionsTreeModel::ColProtocol: return protocol_filter;
+        case ConnectionsTreeModel::ColOutbound: return outbound_filter;
+        default:                                return nullptr;
         }
     }
 
+    // A hidden column must report no filter, or its stale text would keep filtering the table invisibly.
+    QString textFor(int column) const {
+        QLineEdit *edit = editForColumn(column);
+        if (edit == nullptr || isSectionHidden(column)) return {};
+        return edit->text();
+    }
+
     std::array<QLineEdit*, 4> filterEdits() const {
-        return {dest_filter, process_filter, protocol_filter, outbound_filter};
+        return {target_filter, source_filter, protocol_filter, outbound_filter};
     }
 
     static bool isTextEditingKey(QKeyEvent *key) {
@@ -165,9 +218,11 @@ private:
         return false;
     }
 
-    QLineEdit *dest_filter;
-    QLineEdit *process_filter;
+    QLineEdit *target_filter;
+    QLineEdit *source_filter;
     QLineEdit *protocol_filter;
     QLineEdit *outbound_filter;
     bool m_filtersVisible = false;
+    int m_sortSection = -1;
+    bool m_sortDescending = false;
 };

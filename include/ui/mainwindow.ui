@@ -37,13 +37,6 @@
     padding-right: 8px;
 }
 
-/* The indicator shares the bottom row with the label (ToolButtonTextUnderIcon),
-   so the widest button in any language is the tight one -- its text runs closest
-   to the arrow. It fits because the drawn chevron only occupies the middle of
-   its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
-   all five for a gap only one of them ever needs (#1665). If a future
-   translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -86,13 +79,6 @@ QToolButton::menu-indicator {
     padding-right: 8px;
 }
 
-/* The indicator shares the bottom row with the label (ToolButtonTextUnderIcon),
-   so the widest button in any language is the tight one -- its text runs closest
-   to the arrow. It fits because the drawn chevron only occupies the middle of
-   its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
-   all five for a gap only one of them ever needs (#1665). If a future
-   translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -135,13 +121,6 @@ QToolButton::menu-indicator {
     padding-right: 8px;
 }
 
-/* The indicator shares the bottom row with the label (ToolButtonTextUnderIcon),
-   so the widest button in any language is the tight one -- its text runs closest
-   to the arrow. It fits because the drawn chevron only occupies the middle of
-   its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
-   all five for a gap only one of them ever needs (#1665). If a future
-   translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -184,13 +163,6 @@ QToolButton::menu-indicator {
     padding-right: 8px;
 }
 
-/* The indicator shares the bottom row with the label (ToolButtonTextUnderIcon),
-   so the widest button in any language is the tight one -- its text runs closest
-   to the arrow. It fits because the drawn chevron only occupies the middle of
-   its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
-   all five for a gap only one of them ever needs (#1665). If a future
-   translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -233,13 +205,6 @@ QToolButton::menu-indicator {
     padding-right: 8px;
 }
 
-/* The indicator shares the bottom row with the label (ToolButtonTextUnderIcon),
-   so the widest button in any language is the tight one -- its text runs closest
-   to the arrow. It fits because the drawn chevron only occupies the middle of
-   its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
-   all five for a gap only one of them ever needs (#1665). If a future
-   translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -393,7 +358,7 @@ QToolButton::menu-indicator {
         <number>0</number>
        </property>
        <property name="documentMode">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="movable">
         <bool>true</bool>
@@ -402,15 +367,15 @@ QToolButton::menu-indicator {
         <attribute name="title">
          <string/>
         </attribute>
-        <layout class="QGridLayout" name="gridLayout_2">
+        <layout class="QVBoxLayout" name="verticalLayout_tab1">
          <property name="leftMargin">
-          <number>1</number>
+          <number>0</number>
          </property>
          <property name="topMargin">
           <number>0</number>
          </property>
          <property name="rightMargin">
-          <number>1</number>
+          <number>0</number>
          </property>
          <property name="bottomMargin">
           <number>0</number>
@@ -418,7 +383,7 @@ QToolButton::menu-indicator {
          <property name="spacing">
           <number>0</number>
          </property>
-         <item row="0" column="0">
+         <item>
           <widget class="ProfilesTableView" name="profilesTableView">
            <property name="contextMenuPolicy">
             <enum>Qt::ContextMenuPolicy::CustomContextMenu</enum>
@@ -496,7 +461,7 @@ QToolButton::menu-indicator {
               <bool>true</bool>
              </property>
              <property name="documentMode">
-              <bool>true</bool>
+              <bool>false</bool>
              </property>
              <property name="tabsClosable">
               <bool>false</bool>
@@ -522,13 +487,13 @@ QToolButton::menu-indicator {
                 <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
                </property>
                <property name="leftMargin">
-                <number>1</number>
+                <number>0</number>
                </property>
                <property name="topMargin">
                 <number>0</number>
                </property>
                <property name="rightMargin">
-                <number>1</number>
+                <number>0</number>
                </property>
                <property name="bottomMargin">
                 <number>0</number>
@@ -557,19 +522,19 @@ QToolButton::menu-indicator {
                 <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
                </property>
                <property name="leftMargin">
-                <number>1</number>
+                <number>0</number>
                </property>
                <property name="topMargin">
                 <number>0</number>
                </property>
                <property name="rightMargin">
-                <number>1</number>
+                <number>0</number>
                </property>
                <property name="bottomMargin">
                 <number>0</number>
                </property>
                <item>
-                <widget class="QTableView" name="connections">
+                <widget class="QTreeView" name="connections">
                  <property name="autoFillBackground">
                   <bool>false</bool>
                  </property>
@@ -589,13 +554,38 @@ QToolButton::menu-indicator {
                 <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
                </property>
                <property name="leftMargin">
-                <number>1</number>
+                <number>0</number>
                </property>
                <property name="topMargin">
                 <number>0</number>
                </property>
                <property name="rightMargin">
-                <number>1</number>
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="runtime_tab">
+              <attribute name="title">
+               <string>Runtime Stats</string>
+              </attribute>
+              <layout class="QHBoxLayout" name="horizontalLayout_7">
+               <property name="spacing">
+                <number>0</number>
+               </property>
+               <property name="sizeConstraint">
+                <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
+               </property>
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
                </property>
                <property name="bottomMargin">
                 <number>0</number>
@@ -757,7 +747,6 @@ QToolButton::menu-indicator {
     <addaction name="separator"/>
     <addaction name="menu_otp_manager"/>
     <addaction name="separator"/>
-    <addaction name="actionRuntime_Stats"/>
     <addaction name="actionTraffic_Stats"/>
     <addaction name="actionCheck_For_Update"/>
    </widget>

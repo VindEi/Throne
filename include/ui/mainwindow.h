@@ -1,12 +1,11 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QStackedWidget>
 #include "include/ui/widget/SubscriptionInfoCard.hpp"
 
 #include <include/global/HTTPRequestHelper.hpp>
 #ifndef Q_MOC_RUN
-#include <core/server/gen/libcore.pb.h>
+#include <core/gen/libcore.pb.h>
 #endif
 
 #include "include/global/Configs.hpp"
@@ -55,6 +54,10 @@
 
 namespace Configs_sys {
     class CoreProcess;
+}
+
+namespace Configs {
+    enum simpleAction : int;
 }
 
 class TrayProfileSelector;
@@ -145,10 +148,14 @@ public:
 
     void RestartCore();
 
-    // Takes a whole poll snapshot in the lister's order; row N is always its Nth entry. UI thread only.
+    // Whole poll snapshot in the lister's order, never a delta. UI thread only.
     void UpdateConnectionList(const QList<Stats::ConnectionMetadata>& connections);
 
     void UpdateDataView(bool force = false);
+
+    void noteRestartNeeded(const QString& reason);
+
+    void clearRestartNeeded();
 
     void refresh_auto_selector_view();
 
@@ -270,20 +277,25 @@ private:
     ExitReason exit_reason = ExitReason::None;
     QMutex mu_download_update;
     QMutex mu_download_dashboard;
-    class ConnectionsTableModel *connectionsModel = nullptr;
-    class ConnectionsFilterProxyModel *connectionsFilterModel = nullptr;
-    class ConnectionCloseDelegate *connectionCloseDelegate = nullptr;
+    class ConnectionsTreeModel *connectionsModel = nullptr;
+    class ConnectionsTreeFilterProxyModel *connectionsFilterModel = nullptr;
     class ConnectionsFilterHeader *connectionFilterHeader = nullptr;
+    QHash<QString, bool> m_processExpanded; // per-process choices; the rest follow m_processesExpandedByDefault
+    bool m_processesExpandedByDefault = true;
     QTimer *connectionFilterDebounce = nullptr;
+    QToolButton *connectionExpandButton = nullptr;
     QToolButton *connectionCloseAllButton = nullptr;
     QIcon connectionCloseIcon;
+    QIcon connectionExpandIcon;
+    QIcon connectionCollapseIcon;
     int toolTipID;
     SpeedWidget *speedChartWidget;
+    class RuntimeStatsWidget *runtimeStatsWidget = nullptr;
     std::atomic<qint64> lastUpdatedMs = QDateTime::currentMSecsSinceEpoch();
     DataViewHtmlGenerator dataViewHtmlGenerator_;
 
-    QStackedWidget *m_topBarStack = nullptr;       
-    SubscriptionInfoCard *m_subInfoCard = nullptr; 
+    QWidget *m_tableContainer = nullptr;
+    SubscriptionInfoCard *m_subInfoCard = nullptr;
 
     QList<QShortcut*> hiddenMenuShortcuts;
 
@@ -363,7 +375,6 @@ private:
 
     void import_or_handle_deeplink(const QString &text);
 
-    // A pasted url asks whether it is a subscription or a proxy link; everything else is imported as is.
     void import_text(const QString &text);
 
     void refresh_proxy_list_column_size();
@@ -476,7 +487,6 @@ private:
     QHash<QString, QString> m_vpnOtpLastCode;
     QHash<QString, int> m_vpnOtpRejects;
     QSet<QString> m_vpnChallengeAnswering;
-    // Like m_vpnAuthPrompted, these outlive the restart they count; nothing else would end it.
     QHash<int, int> m_vpnAutoRestarts;
     qint64 m_vpnAutoRestartAt = 0;
     // Survives the restart the recovery itself triggers, so a rejected retry cannot loop.
@@ -495,6 +505,12 @@ private:
 
     void setupConnectionSortMenu();
 
+    void onConnectionContextMenu(const QPoint &pos);
+
+    QString routeRuleAppendBlocker() const;
+
+    bool addRuleToCurrentRoute(const QString &rawRule, Configs::simpleAction action);
+
     void setupConnectionFilter();
 
     void restoreConnectionSort();
@@ -505,12 +521,19 @@ private:
 
     void syncConnectionSourceColumn();
 
-    // Rows are rewritten on every poll, so ids are read at click time, never captured.
+    void syncConnectionExpansion();
+
+    void setConnectionGroupsExpanded(bool expanded);
+
+    bool connectionGroupsExpanded() const;
+
+    void syncConnectionExpandButton();
+
     void closeConnections(const QStringList &ids);
 
     QStringList listedConnectionIds() const;
 
-    void refreshConnectionCloseIcons();
+    void refreshConnectionIcons();
 
     friend class TestRunner;
 

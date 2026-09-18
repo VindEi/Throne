@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef Q_MOC_RUN
-#include <core/server/gen/libcore.pb.h>
+#include <core/gen/libcore.pb.h>
 #endif
 #include <QMap>
 #include <QString>
@@ -26,14 +26,14 @@ namespace API {
 
         libcore::QueryStatsResp QueryStats();
 
-        // coreError (optional): on RPC failure, receives the core's error message.
-        libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr);
+        // coreError (optional): on RPC failure, receives the core's error message. timeoutMs 0 = the channel default.
+        libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr, int timeoutMs = 0);
 
         void StopTests(bool *rpcOK);
 
         libcore::QueryURLTestResponse QueryURLTest(bool *rpcOK);
 
-        libcore::IPTestResp IPTest(bool *rpcOK, const libcore::IPTestRequest &request, QString *coreError = nullptr);
+        libcore::IPTestResp IPTest(bool *rpcOK, const libcore::IPTestRequest &request, QString *coreError = nullptr, int timeoutMs = 0);
 
         libcore::QueryIPTestResponse QueryIPTest(bool *rpcOK);
 
@@ -55,6 +55,9 @@ namespace API {
         libcore::QueryCountryTestResponse QueryCountryTestResults(bool *rpcOK);
 
         libcore::GenWgKeyPairResponse GenWgKeyPair(bool *rpcOK);
+
+        libcore::WarpRegisterResponse WarpRegister(bool *rpcOK, const QString &tunnelType, const QString &proxy,
+                                                   const QStringList &apiHosts);
 
         QString InstallDashboard(bool *rpcOK, const QString &archivePath, const QString &targetDir) const;
 
@@ -78,6 +81,11 @@ namespace API {
                                    const QMap<QString, QString> &formValues = {}) const;
 
         QString CancelVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId) const;
+
+        // Blocks for the whole capture window; a timeout does not stop the core, only StopDiagnostics does.
+        libcore::DiagnosticsResponse CaptureDiagnostics(bool *rpcOK, const libcore::DiagnosticsRequest &request, int timeoutMs);
+
+        void StopDiagnostics(bool *rpcOK);
 
     private:
         class LocalSocketChannel;

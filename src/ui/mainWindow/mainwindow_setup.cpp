@@ -17,12 +17,10 @@
 #include "include/sys/AutoRun.hpp"
 #include "include/sys/UrlScheme.hpp"
 
-#include "include/ui/utils/ConnectionsFilterHeader.h"
-#include "include/ui/utils/ConnectionsTableModel.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/setting/Icon.hpp"
 #include "include/ui/stats/dialog_traffic_stats.h"
-#include "include/ui/stats/dialog_runtime_stats.h"
+#include "include/ui/stats/RuntimeStatsWidget.h"
 #include "include/ui/widget/StartStopButton.hpp"
 #include "include/ui/widget/SubscriptionInfoCard.hpp"
 
@@ -57,6 +55,7 @@
 #include <QUuid>
 
 #include <QClipboard>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QDesktopServices>
 #include <QTimer>
@@ -67,6 +66,7 @@
 #endif
 #include <QFileDialog>
 #include <QToolButton>
+#include <QTextBrowser>
 #include <include/global/HTTPRequestHelper.hpp>
 #include "include/global/DeviceDetailsHelper.hpp"
 
@@ -145,7 +145,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     UrlScheme_RegisterIfNeeded();
 
-    // migrate old themes
     bool isNum;
     Configs::dataManager->settingsRepo->theme.toInt(&isNum);
     if (isNum) {
@@ -184,6 +183,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 #endif
     connect(themeManager(), &ThemeManager::themeChanged, this, [=,this](const QString& theme){
         setLogHighlighter(themeUsesDarkLog(theme));
+        applyLogBrowserFont();
         scheduleProxyListRefresh();
     });
     MW_show_log = [=,this](const QString &log) {
@@ -262,12 +262,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     parallelCoreCallPool->setMaxThreadCount(10);
     testRunner = std::make_unique<TestRunner>(this);
-    // The .ui carries Return; numpad Enter is the same gesture.
     ui->menu_start->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(ui->menu_start, &QAction::triggered, this, [=,this]() { profile_start(); });
     connect(ui->menu_stop, &QAction::triggered, this, [=,this]() { profile_stop(false, false, true); });
     connect(ui->toolButton_startstop, &QAbstractButton::clicked, this, [=,this]() {
-        // The button is disabled while Connecting, so a click is stop-running or start-selected.
         if (running != nullptr) profile_stop(false, false, true);
         else profile_start();
     });
@@ -282,7 +280,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->label_running->installEventFilter(this);
     ui->label_inbound->installEventFilter(this);
     ui->splitter->installEventFilter(this);
-    // Never from a mouse-press filter: off Windows Qt synthesizes the context-menu event after the press, landing it on whatever is under the cursor by then (#1642).
+    // Never from a mouse-press filter: off Windows Qt synthesizes the context-menu event after the press (#1642).
     ui->tabWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     ui->tabWidget->tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->tabWidget->tabBar(), &QWidget::customContextMenuRequested, this,
@@ -340,13 +338,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     ui->menubar->setVisible(false);
     connect(ui->actionRuntime_Stats, &QAction::triggered, this, [=, this]() {
-        USE_DIALOG(DialogRuntimeStats)
+        ui->stats_widget->setCurrentWidget(ui->runtime_tab);
+        if (ui->splitter->sizes().value(1) < ui->stats_widget->tabBar()->sizeHint().height()) {
+            const auto height = ui->splitter->size().height();
+            ui->splitter->setSizes({height / 2, height / 2});
+        }
     });
     ui->actionTraffic_Stats->setVisible(!Configs::dataManager->settingsRepo->disable_traffic_aggregation);
     connect(ui->actionTraffic_Stats, &QAction::triggered, this, [=, this]() {
         USE_DIALOG(DialogTrafficStats)
     });
-    // refresh_auto_selector_view shows and hides this as the selector monitor starts and stops.
     ui->actionAuto_Selector->setVisible(false);
     connect(ui->actionAuto_Selector, &QAction::triggered, this, [=,this]() {
         if (m_autoSelectorDialog == nullptr) {
@@ -375,29 +376,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         syncConnectionViewState();
     });
     syncConnectionViewState();
-    connect(ui->connections->horizontalHeader(), &QHeaderView::sectionClicked, this, [=,this](int index)
-    {
-            // The close column has no sort of its own; without this it would fall through and reset sorting.
-            if (index == ConnectionsTableModel::ColClose) return;
-
-            Stats::ConnectionSort sortType;
-
-            switch (index)
-            {
-            case ConnectionsTableModel::ColSource:   sortType = Stats::BySource; break;
-            case ConnectionsTableModel::ColProcess:  sortType = Stats::ByProcess; break;
-            case ConnectionsTableModel::ColProtocol: sortType = Stats::ByProtocol; break;
-            case ConnectionsTableModel::ColOutbound: sortType = Stats::ByOutbound; break;
-            case ConnectionsTableModel::ColTraffic:  sortType = Stats::ByTraffic; break;
-            case ConnectionsTableModel::ColSpeed:    sortType = Stats::BySpeed; break;
-            default: sortType = Stats::Default; break;
-            }
-
-            applyConnectionSort(sortType);
-    });
 
     speedChartWidget = new SpeedWidget(this);
     ui->graph_tab->layout()->addWidget(speedChartWidget);
+
+    runtimeStatsWidget = new RuntimeStatsWidget(this);
+    auto* runtimeScroll = new QScrollArea(this);
+    runtimeScroll->setFrameShape(QFrame::NoFrame);
+    runtimeScroll->setWidgetResizable(true);
+    runtimeScroll->setWidget(runtimeStatsWidget);
+    ui->runtime_tab->layout()->addWidget(runtimeScroll);
 
     profilesTableModel = new ProfilesTableModel(this);
     profilesFilterModel = new ProfilesFilterProxyModel(this);
@@ -680,14 +668,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(filterHeader, &ProfilesTableFilterHeader::focusTableRequested, this,
             [this](bool selectFirst) { focusProfilesTable(selectFirst); });
 
-    // (Page 0: Subscription Card, Page 1: Live test reports)
-    m_topBarStack = new QStackedWidget(this);
-    m_subInfoCard = new SubscriptionInfoCard(this);
 
-    ui->horizontalLayout_2->removeWidget(ui->data_view);
-    m_topBarStack->addWidget(m_subInfoCard);
-    m_topBarStack->addWidget(ui->data_view);
-    ui->horizontalLayout_2->addWidget(m_topBarStack);
+    m_tableContainer = new QWidget(this);
+    auto *containerLayout = new QVBoxLayout(m_tableContainer);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->setSpacing(0);
+
+    m_subInfoCard = new SubscriptionInfoCard(m_tableContainer);
+    m_subInfoCard->setTableView(ui->profilesTableView);
+    containerLayout->addWidget(m_subInfoCard);
+    containerLayout->addWidget(ui->profilesTableView);
 
     this->refresh_groups();
 
@@ -1116,6 +1106,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
+
+    ui->data_view->setOpenLinks(false);
+    ui->data_view->setOpenExternalLinks(false);
+    connect(ui->data_view, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
+        const auto action = url.toString();
+        if (action == QLatin1String(DataViewHtmlGenerator::RestartActionUrl)) {
+            const int startedID = Configs::dataManager->settingsRepo->started_id;
+            clearRestartNeeded();
+            if (startedID >= 0) profile_start(startedID);
+        } else if (action == QLatin1String(DataViewHtmlGenerator::DismissRestartActionUrl)) {
+            clearRestartNeeded();
+        }
+    });
 }
 
 MainWindow::~MainWindow() {
