@@ -1299,6 +1299,11 @@ QToolButton::menu-indicator {
     <string>Check For Update</string>
    </property>
   </action>
+  <action name="actionUpdate_Rule_Sets">
+   <property name="text">
+    <string>Update Rule-Sets</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

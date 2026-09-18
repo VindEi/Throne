@@ -75,6 +75,17 @@ if (NKR_PACKAGE OR NKR_PACKAGE_MACOS)
     nkr_add_compile_definitions(NKR_CPP_USE_APPDATA)
 endif ()
 
+# Distro packaging hooks: a core reached through a PATH wrapper, and prefixes the app cannot chmod itself.
+if (NKR_CORE_IN_PATH)
+    nkr_add_compile_definitions(NKR_CORE_IN_PATH)
+endif ()
+if (NKR_ELEVATION_HINT)
+    nkr_add_compile_definitions(NKR_ELEVATION_HINT="${NKR_ELEVATION_HINT}")
+endif ()
+if (NKR_DESKTOP_EXEC)
+    nkr_add_compile_definitions(NKR_DESKTOP_EXEC="${NKR_DESKTOP_EXEC}")
+endif ()
+
 include("cmake/myproto.cmake")
 list(APPEND NKR_EXTERNAL_TARGETS myproto)
 
@@ -183,6 +194,8 @@ set(PROJECT_SOURCES
         include/ui/mainwindow.ui
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
+        include/ui/widget/TrayIcon.hpp
+        src/ui/widget/TrayIcon.cpp
         include/ui/widget/TrayPopupFrame.hpp
         src/ui/widget/TrayPopupFrame.cpp
         include/ui/widget/TrayProfileSelector.hpp

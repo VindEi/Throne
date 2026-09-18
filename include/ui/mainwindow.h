@@ -20,7 +20,7 @@
 
 #include <optional>
 #include <QKeyEvent>
-#include <QSystemTrayIcon>
+#include "include/ui/widget/TrayIcon.hpp"
 #include <QPointer>
 #include <QTimer>
 #include <QElapsedTimer>
@@ -245,7 +245,7 @@ private:
     ProfilesTableModel *profilesTableModel = nullptr;
 
     ProfilesFilterProxyModel *profilesFilterModel = nullptr;
-    QSystemTrayIcon *tray;
+    TrayIcon *tray;
     QMenu *trayMenu = nullptr;
     QPointer<TrayProfileSelector> traySelector;
     void openTraySelector(bool routing);
@@ -267,6 +267,7 @@ private:
     bool m_profileConnecting = false;
     bool m_profileDisconnecting = false;
     bool m_xrayGeoAssetBusy = false;
+    bool m_ruleSetUpdateBusy = false;
     QString traffic_update_cache;
     qint64 last_test_time = 0;
     int proxy_last_order = -1;
