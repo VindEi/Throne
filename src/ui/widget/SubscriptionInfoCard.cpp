@@ -3,7 +3,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
-#include <QToolButton>
+#include <QPushButton>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QApplication>
@@ -12,8 +12,7 @@
 #include <QFontMetrics>
 #include <QResizeEvent>
 #include <QTimer>
-#include <QTableView>
-#include <QHeaderView>
+#include <QPalette>
 #include <algorithm>
 
 #include "include/database/entities/Group.h"
@@ -101,9 +100,28 @@ namespace
             p.drawEllipse(QRectF(5.2, 2.8, 1.6, 1.6));
             p.drawRoundedRect(QRectF(5.3, 5.2, 1.4, 3.4), 0.5, 0.5);
         }
+        else if (kind == "sync")
+        {
+            p.drawArc(QRectF(1.5, 1.5, 9.0, 9.0), 30 * 16, 270 * 16);
+            p.drawLine(QPointF(8.0, 2.0), QPointF(10.5, 4.0));
+            p.drawLine(QPointF(8.0, 6.0), QPointF(10.5, 4.0));
+        }
 
         p.end();
         return pix;
+    }
+
+    bool openSafeUrl(const QString &rawUrl, bool allowTg = false)
+    {
+        const QUrl url(rawUrl.trimmed());
+        if (!url.isValid())
+            return false;
+        const QString scheme = url.scheme().toLower();
+        if (scheme == "http" || scheme == "https" || (allowTg && scheme == "tg"))
+        {
+            return QDesktopServices::openUrl(url);
+        }
+        return false;
     }
 }
 
@@ -139,43 +157,63 @@ void SubscriptionInfoCard::setupUi()
 {
     setObjectName(QStringLiteral("SubscriptionInfoCard"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setFixedHeight(28);
 
     auto *row = new QHBoxLayout(this);
-    row->setContentsMargins(8, 4, 8, 4);
+    row->setContentsMargins(10, 2, 10, 2);
     row->setSpacing(8);
     row->setAlignment(Qt::AlignVCenter);
 
-    auto createButton = [this](const QString &tooltip) -> QToolButton *
+    const int btnHeight = std::max(20, fontMetrics().height() + 4);
+
+    auto createButton = [this, btnHeight](const QString &text, const QString &tooltip) -> QPushButton *
     {
-        auto *btn = new QToolButton(this);
+        auto *btn = new QPushButton(this);
+        btn->setText(text.trimmed());
         btn->setToolTip(tooltip);
         btn->setCursor(Qt::PointingHandCursor);
+        btn->setFlat(true);
+        btn->setFixedHeight(btnHeight);
         return btn;
     };
 
-    // 1. Group Title (Locked to 105px to completely stop horizontal jumping)
+    auto createDivider = [this]() -> QFrame *
+    {
+        auto *sep = new QFrame(this);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFrameShadow(QFrame::Plain);
+        sep->setFixedHeight(std::max(12, fontMetrics().height() - 2));
+        return sep;
+    };
+
     m_titleLabel = new QLabel(this);
+    m_titleLabel->setTextFormat(Qt::PlainText);
     QFont titleFont = m_titleLabel->font();
     titleFont.setBold(true);
-    titleFont.setPointSize(8);
     m_titleLabel->setFont(titleFont);
     m_titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    m_titleLabel->setFixedWidth(105);
-    m_titleLabel->setFixedHeight(18);
+    m_titleLabel->setMaximumWidth(fontMetrics().averageCharWidth() * 20);
     row->addWidget(m_titleLabel);
 
-    // 2. Hero Progress Bar (Stable 280px width)
+    m_sepQuota = createDivider();
+    row->addWidget(m_sepQuota);
+
     m_progressBar = new QProgressBar(this);
-    m_progressBar->setFixedHeight(18);
-    m_progressBar->setFixedWidth(280);
-    m_progressBar->setTextVisible(true);
-    m_progressBar->setAlignment(Qt::AlignCenter);
+    m_progressBar->setFixedHeight(std::max(10, fontMetrics().height() - 4));
+    m_progressBar->setTextVisible(false);
     row->addWidget(m_progressBar);
 
-    // 3. Expiry Pill Badge (Locked 18px height)
+    m_quotaLabel = new QLabel(this);
+    m_quotaLabel->setTextFormat(Qt::PlainText);
+    m_quotaLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    row->addWidget(m_quotaLabel);
+
+    m_sepExpiry = createDivider();
+    row->addWidget(m_sepExpiry);
+
     m_expiryBadge = new QFrame(this);
     m_expiryBadge->setObjectName(QStringLiteral("subExpiryBadge"));
-    m_expiryBadge->setFixedHeight(18);
+    m_expiryBadge->setFixedHeight(20);
     auto *layExp = new QHBoxLayout(m_expiryBadge);
     layExp->setContentsMargins(6, 0, 6, 0);
     layExp->setSpacing(4);
@@ -184,18 +222,38 @@ void SubscriptionInfoCard::setupUi()
     m_expiryIcon = new QLabel(m_expiryBadge);
     m_expiryIcon->setFixedSize(12, 12);
     m_expiryLabel = new QLabel(m_expiryBadge);
-    QFont expFont = m_expiryLabel->font();
-    expFont.setPointSize(8);
-    m_expiryLabel->setFont(expFont);
+    m_expiryLabel->setTextFormat(Qt::PlainText);
 
     layExp->addWidget(m_expiryIcon);
     layExp->addWidget(m_expiryLabel);
     row->addWidget(m_expiryBadge);
 
-    // 4. Clickable Announcement Pill Chip (Whole chip is clickable, no squished button inside)
+    m_sepInterval = createDivider();
+    row->addWidget(m_sepInterval);
+
+    m_intervalBadge = new QFrame(this);
+    m_intervalBadge->setObjectName(QStringLiteral("subIntervalBadge"));
+    m_intervalBadge->setFixedHeight(20);
+    auto *layInt = new QHBoxLayout(m_intervalBadge);
+    layInt->setContentsMargins(6, 0, 6, 0);
+    layInt->setSpacing(4);
+    layInt->setAlignment(Qt::AlignVCenter);
+
+    m_intervalIcon = new QLabel(m_intervalBadge);
+    m_intervalIcon->setFixedSize(12, 12);
+    m_intervalLabel = new QLabel(m_intervalBadge);
+    m_intervalLabel->setTextFormat(Qt::PlainText);
+
+    layInt->addWidget(m_intervalIcon);
+    layInt->addWidget(m_intervalLabel);
+    row->addWidget(m_intervalBadge);
+
+    m_sepAnnounce = createDivider();
+    row->addWidget(m_sepAnnounce);
+
     m_announceBadge = new QFrame(this);
     m_announceBadge->setObjectName(QStringLiteral("subAnnounceBadge"));
-    m_announceBadge->setFixedHeight(18);
+    m_announceBadge->setFixedHeight(20);
     m_announceBadge->setCursor(Qt::PointingHandCursor);
     m_announceBadge->installEventFilter(this);
 
@@ -209,77 +267,40 @@ void SubscriptionInfoCard::setupUi()
     m_announceIcon->setAlignment(Qt::AlignCenter);
 
     m_announceLabel = new QLabel(m_announceBadge);
-    QFont annFont = m_announceLabel->font();
-    annFont.setPointSize(8);
-    m_announceLabel->setFont(annFont);
+    m_announceLabel->setTextFormat(Qt::PlainText);
 
     layAnn->addWidget(m_announceIcon);
     layAnn->addWidget(m_announceLabel);
     row->addWidget(m_announceBadge);
 
-    // Spacer between data and right actions
     row->addStretch(1);
 
-    // 5. Portal Button (Locked 18px height)
-    m_btnPortal = createButton(tr("Website / Portal"));
-    m_btnPortal->setFixedSize(22, 18);
-    connect(m_btnPortal, &QToolButton::clicked, this, [this]
+    m_sepActions = createDivider();
+    row->addWidget(m_sepActions);
+
+    m_btnPortal = createButton(tr("Portal"), tr("Website / Portal"));
+    connect(m_btnPortal, &QPushButton::clicked, this, [this]
             {
-        if (m_group) {
-            auto sub = m_group->GetSubUserInfo();
-            if (!sub.web_url.isEmpty()) QDesktopServices::openUrl(QUrl(sub.web_url));
-        } });
+        if (m_group) openSafeUrl(m_group->GetSubUserInfo().web_url); });
     m_btnPortal->hide();
     row->addWidget(m_btnPortal);
 
-    // 6. Support Button (Locked 18px height)
-    m_btnSupport = createButton(tr("Technical Support"));
-    m_btnSupport->setFixedSize(22, 18);
-    connect(m_btnSupport, &QToolButton::clicked, this, [this]
+    m_btnSupport = createButton(tr("Support"), tr("Technical Support"));
+    connect(m_btnSupport, &QPushButton::clicked, this, [this]
             {
-        if (m_group) {
-            auto sub = m_group->GetSubUserInfo();
-            if (!sub.support_url.isEmpty()) QDesktopServices::openUrl(QUrl(sub.support_url));
-        } });
+        if (m_group) openSafeUrl(m_group->GetSubUserInfo().support_url, true); });
     m_btnSupport->hide();
     row->addWidget(m_btnSupport);
 }
 
-void SubscriptionInfoCard::setTableView(QTableView *table)
-{
-    m_tableView = table;
-    if (!m_tableView)
-        return;
-
-    if (auto *vHeader = m_tableView->verticalHeader())
-    {
-        connect(vHeader, &QHeaderView::geometriesChanged, this, &SubscriptionInfoCard::syncTableOffset);
-    }
-    syncTableOffset();
-}
-
-void SubscriptionInfoCard::syncTableOffset()
-{
-    if (!m_tableView || !isVisible())
-        return;
-
-    int vhWidth = 0;
-    if (auto *vHeader = m_tableView->verticalHeader())
-    {
-        if (vHeader->isVisible())
-            vhWidth = vHeader->width();
-    }
-    layout()->setContentsMargins(vhWidth + 4, 4, 8, 4);
-}
-
 QSize SubscriptionInfoCard::sizeHint() const
 {
-    return {QFrame::sizeHint().width(), 26};
+    return {QFrame::sizeHint().width(), 28};
 }
 
 QSize SubscriptionInfoCard::minimumSizeHint() const
 {
-    return {0, 26};
+    return {0, 28};
 }
 
 bool SubscriptionInfoCard::hasSubscription() const
@@ -296,7 +317,13 @@ void SubscriptionInfoCard::setGroup(const std::shared_ptr<Configs::Group> &group
 void SubscriptionInfoCard::resizeEvent(QResizeEvent *event)
 {
     QFrame::resizeEvent(event);
-    syncTableOffset();
+    if (m_progressBar && m_group && m_group->GetSubUserInfo().has_quota)
+    {
+        const int minBarWidth = fontMetrics().averageCharWidth() * 18;
+        const int maxBarWidth = fontMetrics().averageCharWidth() * 38;
+        const int dynamicBarWidth = std::clamp(width() > 0 ? (width() / 7) : minBarWidth, minBarWidth, maxBarWidth);
+        m_progressBar->setFixedWidth(dynamicBarWidth);
+    }
     updateAnnouncementLayout();
 }
 
@@ -329,45 +356,135 @@ bool SubscriptionInfoCard::eventFilter(QObject *watched, QEvent *event)
 
 void SubscriptionInfoCard::updateAnnouncementLayout()
 {
+    const auto sub = m_group ? m_group->GetSubUserInfo() : Configs::SubUserInfo{};
+    const bool isManual = m_group && (m_group->sub_update_interval > 0);
+    const int displayInterval = isManual ? m_group->sub_update_interval : sub.server_interval;
+    const bool hasInterval = (displayInterval > 0);
+    const bool hasQuota = sub.has_quota;
+    const bool hasExpiry = (sub.expire > 0);
+    const bool hasWeb = !sub.web_url.isEmpty() && (sub.web_url.startsWith("http://", Qt::CaseInsensitive) || sub.web_url.startsWith("https://", Qt::CaseInsensitive));
+    const bool hasSupport = !sub.support_url.isEmpty() && (sub.support_url.startsWith("http://", Qt::CaseInsensitive) || sub.support_url.startsWith("https://", Qt::CaseInsensitive) || sub.support_url.startsWith("tg://", Qt::CaseInsensitive));
+    const bool hasActions = hasWeb || hasSupport;
+    const int btnHeight = std::max(20, fontMetrics().height() + 4);
+
+    if (hasWeb)
+    {
+        m_btnPortal->setText(QString());
+        m_btnPortal->setFixedSize(btnHeight, btnHeight);
+    }
+    if (hasSupport)
+    {
+        m_btnSupport->setText(QString());
+        m_btnSupport->setFixedSize(btnHeight, btnHeight);
+    }
+
+    auto calculateBaseWidth = [&]() -> int
+    {
+        int w = layout()->contentsMargins().left() + layout()->contentsMargins().right();
+        w += m_titleLabel->sizeHint().width();
+        if (hasQuota)
+        {
+            w += m_sepQuota->sizeHint().width() + layout()->spacing();
+            w += m_progressBar->width() + layout()->spacing();
+            w += m_quotaLabel->sizeHint().width() + layout()->spacing();
+        }
+        if (hasExpiry && hasQuota)
+        {
+            w += m_sepExpiry->sizeHint().width() + layout()->spacing();
+            w += m_expiryBadge->sizeHint().width() + layout()->spacing();
+        }
+        if (hasActions)
+        {
+            w += m_sepActions->sizeHint().width() + layout()->spacing();
+            if (hasWeb)
+                w += m_btnPortal->width() + layout()->spacing();
+            if (hasSupport)
+                w += m_btnSupport->width() + layout()->spacing();
+        }
+        return w;
+    };
+
+    int baseWidth = calculateBaseWidth();
+    const QFontMetrics fm(m_announceLabel->font());
+
+    const int intervalNeed = hasInterval ? (m_intervalBadge->sizeHint().width() + m_sepInterval->sizeHint().width() + 2 * layout()->spacing()) : 0;
+    const bool canShowInterval = hasInterval && (width() - baseWidth > intervalNeed + fm.averageCharWidth() * 10);
+
+    m_intervalBadge->setVisible(canShowInterval);
+    m_sepInterval->setVisible(canShowInterval && (hasQuota || hasExpiry));
+
+    if (canShowInterval)
+    {
+        baseWidth += intervalNeed;
+    }
+
     if (m_fullAnnounce.isEmpty())
     {
         m_announceBadge->hide();
+        m_sepAnnounce->hide();
+
+        if (width() - baseWidth > fm.averageCharWidth() * 24)
+        {
+            if (hasWeb)
+            {
+                m_btnPortal->setText(tr("Portal"));
+                m_btnPortal->setMinimumSize(0, btnHeight);
+                m_btnPortal->setMaximumSize(QWIDGETSIZE_MAX, btnHeight);
+            }
+            if (hasSupport)
+            {
+                m_btnSupport->setText(tr("Support"));
+                m_btnSupport->setMinimumSize(0, btnHeight);
+                m_btnSupport->setMaximumSize(QWIDGETSIZE_MAX, btnHeight);
+            }
+        }
+        return;
+    }
+
+    auto *layAnn = m_announceBadge->layout();
+    const int badgeOverhead = layAnn->contentsMargins().left() + layAnn->contentsMargins().right() + layAnn->spacing() + m_announceIcon->sizeHint().width() + 8;
+    const int sepWidth = m_sepAnnounce->sizeHint().width() + layout()->spacing();
+    int availForAnnounce = width() - baseWidth - sepWidth - layout()->spacing();
+
+    if (availForAnnounce < badgeOverhead + fm.averageCharWidth() * 4)
+    {
+        m_announceBadge->hide();
+        m_sepAnnounce->hide();
         return;
     }
 
     m_announceBadge->show();
+    m_sepAnnounce->setVisible(hasQuota || hasExpiry || canShowInterval);
 
-    // Dynamically calculate available width for the announcement chip
-    int usedWidth = layout()->contentsMargins().left() + layout()->contentsMargins().right();
-    usedWidth += m_titleLabel->width() + m_progressBar->width();
-    if (m_expiryBadge->isVisible())
-    {
-        usedWidth += m_expiryBadge->sizeHint().width() + layout()->spacing();
-    }
-    if (m_btnPortal->isVisible())
-    {
-        usedWidth += m_btnPortal->width() + layout()->spacing();
-    }
-    if (m_btnSupport->isVisible())
-    {
-        usedWidth += m_btnSupport->width() + layout()->spacing();
-    }
-    usedWidth += 3 * layout()->spacing();
+    const int naturalTextWidth = fm.horizontalAdvance(m_fullAnnounce);
+    const int naturalPillWidth = naturalTextWidth + badgeOverhead;
 
-    const int avail = width() - usedWidth;
-    if (avail <= 60)
+    const int surplus = availForAnnounce - naturalPillWidth;
+    if (surplus > fm.averageCharWidth() * 24)
     {
-        m_announceBadge->hide();
-        return;
+        if (hasWeb)
+        {
+            m_btnPortal->setText(tr("Portal"));
+            m_btnPortal->setMinimumSize(0, btnHeight);
+            m_btnPortal->setMaximumSize(QWIDGETSIZE_MAX, btnHeight);
+        }
+        if (hasSupport)
+        {
+            m_btnSupport->setText(tr("Support"));
+            m_btnSupport->setMinimumSize(0, btnHeight);
+            m_btnSupport->setMaximumSize(QWIDGETSIZE_MAX, btnHeight);
+        }
+        baseWidth = calculateBaseWidth();
+        if (canShowInterval)
+            baseWidth += intervalNeed;
+        availForAnnounce = width() - baseWidth - sepWidth - layout()->spacing();
     }
 
-    // Cap the announcement pill up to 300px, but shrink it if the screen narrows
-    const int maxPillWidth = qBound(80, avail, 300);
-    const int textAvail = maxPillWidth - 12 - 12; // icon + padding
+    const int pillWidth = std::min(naturalPillWidth, availForAnnounce);
+    const int textAvail = std::max(0, pillWidth - badgeOverhead);
 
-    QFontMetrics fm(m_announceLabel->font());
     m_announceLabel->setText(fm.elidedText(m_fullAnnounce, Qt::ElideRight, textAvail));
-    m_announceBadge->setMaximumWidth(maxPillWidth);
+    m_announceBadge->setMaximumWidth(pillWidth);
 }
 
 void SubscriptionInfoCard::updateData()
@@ -375,46 +492,44 @@ void SubscriptionInfoCard::updateData()
     if (!hasSubscription())
     {
         hide();
+        emit cardVisibilityChanged();
         return;
     }
 
     auto sub = m_group->GetSubUserInfo();
     const auto &tk = themeManager()->tokens;
-    const QColor winBg = qApp->palette().color(QPalette::Active, QPalette::Window);
-    const bool isDark = (winBg.lightness() <= 128);
+    const QPalette pal = qApp->palette();
+    const bool isDark = pal.color(QPalette::Window).lightness() <= 128;
+    const QColor textPrimary = pal.color(QPalette::WindowText);
+    const QColor textSecondary = pal.color(QPalette::PlaceholderText).isValid()
+                                     ? pal.color(QPalette::PlaceholderText)
+                                     : (isDark ? QColor(156, 163, 175) : QColor(75, 85, 99));
+    const QColor borderColor = pal.color(QPalette::Mid);
+    const QColor trackColor = pal.color(QPalette::AlternateBase);
 
-    const QString textPrimary = isDark ? QStringLiteral("#F3F4F6") : QStringLiteral("#111827");
-    const QString textSecondary = isDark ? QStringLiteral("#9CA3AF") : QStringLiteral("#4B5563");
-    const QString trackColor = isDark ? QStringLiteral("#1E2630") : QStringLiteral("#E2E8F0");
-    const QString borderColor = isDark ? QStringLiteral("#3E4C5F") : QStringLiteral("#CBD5E1");
-
-    // 1. Group Title (105px fixed width)
     QString title = !sub.title.isEmpty() ? sub.title : m_group->name;
     QFontMetrics titleFm(m_titleLabel->font());
-    m_titleLabel->setText(titleFm.elidedText(title, Qt::ElideRight, m_titleLabel->width()));
-    m_titleLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textPrimary));
+    m_titleLabel->setText(titleFm.elidedText(title, Qt::ElideRight, m_titleLabel->maximumWidth()));
 
-    QString tooltip = title;
-    if (m_group->sub_update_interval > 0)
+    QString tooltip = title.toHtmlEscaped();
+    int effectiveInterval = m_group->sub_update_interval > 0 ? m_group->sub_update_interval : sub.server_interval;
+    if (effectiveInterval > 0)
     {
-        tooltip += QStringLiteral("\n") + tr("Auto-update: every %1 hours").arg(m_group->sub_update_interval);
+        tooltip += QStringLiteral("\n") + tr("Auto-update: every %1 hours").arg(effectiveInterval);
     }
     if (m_group->sub_last_update > 0)
     {
         tooltip += QStringLiteral("\n") + tr("Last updated: %1").arg(DisplayTime(m_group->sub_last_update, QLocale::ShortFormat));
     }
     m_titleLabel->setToolTip(tooltip);
-    m_progressBar->setToolTip(tooltip);
 
-    // 2. Hero Quota Progress Bar (280px fixed width)
-    if (!sub.valid)
-    {
-        m_progressBar->hide();
-    }
-    else
-    {
-        m_progressBar->show();
+    const bool hasQuota = sub.has_quota;
+    m_sepQuota->setVisible(hasQuota);
+    m_progressBar->setVisible(hasQuota);
+    m_quotaLabel->setVisible(hasQuota);
 
+    if (hasQuota)
+    {
         QString usedStr = ReadableSize(sub.used());
         QString totalStr = (sub.total > 0) ? ReadableSize(sub.total) : QString::fromUtf8("∞");
         double pct = sub.percentUsed();
@@ -431,107 +546,88 @@ void SubscriptionInfoCard::updateData()
         else
         {
             const double hue = std::clamp(120.0 * (1.0 - (pct / 100.0)), 0.0, 120.0);
-            barColor = QColor::fromHsv(static_cast<int>(hue), 190, isDark ? 215 : 175);
+            barColor = QColor::fromHsv(static_cast<int>(hue), 190, isDark ? 200 : 175);
         }
+
+        const int minBarWidth = fontMetrics().averageCharWidth() * 18;
+        const int maxBarWidth = fontMetrics().averageCharWidth() * 38;
+        const int dynamicBarWidth = std::clamp(width() > 0 ? (width() / 7) : minBarWidth, minBarWidth, maxBarWidth);
+        m_progressBar->setFixedWidth(dynamicBarWidth);
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(sub.total > 0 ? static_cast<int>(pct) : 100);
 
         if (sub.total > 0)
         {
-            m_progressBar->setRange(0, 100);
-            m_progressBar->setValue(static_cast<int>(pct));
-            m_progressBar->setFormat(QStringLiteral("%1 / %2 (%3%)").arg(usedStr, totalStr, QString::number(static_cast<int>(pct))));
+            m_quotaLabel->setText(QStringLiteral("%1 / %2 (%3%)").arg(usedStr, totalStr, QString::number(static_cast<int>(pct))));
         }
         else
         {
-            m_progressBar->setRange(0, 100);
-            m_progressBar->setValue(100);
-            m_progressBar->setFormat(QStringLiteral("%1 / ∞").arg(usedStr));
+            m_quotaLabel->setText(QStringLiteral("%1 / ∞").arg(usedStr));
         }
 
-        const QString textColor = (pct >= 45.0 || sub.total <= 0) ? QStringLiteral("#FFFFFF") : textPrimary;
+        m_quotaLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary.name()));
 
+        const int radius = std::max(2, (fontMetrics().height() - 4) / 4);
         m_progressBar->setStyleSheet(QStringLiteral(
                                          "QProgressBar {"
                                          "  border: 1px solid %1;"
-                                         "  border-radius: 3px;"
-                                         "  text-align: center;"
-                                         "  font-weight: bold;"
-                                         "  font-size: 8pt;"
-                                         "  line-height: 1;"
-                                         "  color: %2;"
+                                         "  border-radius: %2px;"
                                          "  background-color: %3;"
                                          "}"
                                          "QProgressBar::chunk {"
                                          "  background-color: %4;"
-                                         "  border-radius: 2px;"
+                                         "  border-radius: %5px;"
                                          "}")
-                                         .arg(borderColor, textColor, trackColor, barColor.name()));
+                                         .arg(borderColor.name(), QString::number(radius), trackColor.name(), barColor.name(), QString::number(std::max(1, radius - 1))));
     }
 
-    // 3. Expiry Badge
-    if (sub.expire > 0)
+    const bool hasExpiry = (sub.expire > 0);
+    m_sepExpiry->setVisible(hasExpiry && hasQuota);
+
+    if (hasExpiry)
     {
         qint64 now = QDateTime::currentSecsSinceEpoch();
         qint64 diffSecs = sub.expire - now;
         qint64 diffDays = diffSecs / 86400;
 
         QString expText;
-        QColor badgeTextColor;
-        QString badgeBg;
-        QString badgeBorder;
+        QColor badgeColor;
 
         if (sub.isExpired())
         {
             m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
             expText = tr("Expired");
-            badgeTextColor = tk.danger;
-            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
-            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
+            badgeColor = tk.danger;
         }
         else if (diffSecs < 3600)
         {
             qint64 minutes = std::max<qint64>(1, diffSecs / 60);
             m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
-            expText = QStringLiteral("%1m left").arg(minutes);
-            badgeTextColor = tk.danger;
-            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
-            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
+            expText = tr("%1m left").arg(minutes);
+            badgeColor = tk.danger;
         }
         else if (diffSecs < 86400)
         {
             qint64 hours = std::max<qint64>(1, diffSecs / 3600);
             m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
-            expText = QStringLiteral("%1h left").arg(hours);
-            badgeTextColor = tk.danger;
-            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.15)") : QStringLiteral("rgba(239, 68, 68, 0.10)");
-            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.4)") : QStringLiteral("rgba(239, 68, 68, 0.3)");
+            expText = tr("%1h left").arg(hours);
+            badgeColor = tk.danger;
         }
         else if (diffDays <= 3)
         {
             m_expiryIcon->setPixmap(renderVectorPixmap("warn", tk.danger, 12));
-            expText = QStringLiteral("%1d left").arg(diffDays);
-            badgeTextColor = tk.danger;
-            badgeBg = isDark ? QStringLiteral("rgba(239, 68, 68, 0.12)") : QStringLiteral("rgba(239, 68, 68, 0.08)");
-            badgeBorder = isDark ? QStringLiteral("rgba(239, 68, 68, 0.3)") : QStringLiteral("rgba(239, 68, 68, 0.2)");
+            expText = tr("%1d left").arg(diffDays);
+            badgeColor = tk.danger;
         }
         else
         {
-            m_expiryIcon->setPixmap(renderVectorPixmap("hourglass", QColor(textSecondary), 12));
-            expText = QStringLiteral("%1d left").arg(diffDays);
-            badgeTextColor = QColor(textSecondary);
-            badgeBg = isDark ? QStringLiteral("rgba(255, 255, 255, 0.04)") : QStringLiteral("rgba(0, 0, 0, 0.03)");
-            badgeBorder = borderColor;
+            m_expiryIcon->setPixmap(renderVectorPixmap("hourglass", textSecondary, 12));
+            expText = tr("%1d left").arg(diffDays);
+            badgeColor = textSecondary;
         }
 
         m_expiryLabel->setText(expText);
-        m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(badgeTextColor.name()));
-        m_expiryBadge->setStyleSheet(QStringLiteral(
-                                         "QFrame#subExpiryBadge {"
-                                         "  background-color: %1;"
-                                         "  border: 1px solid %2;"
-                                         "  border-radius: 3px;"
-                                         "}")
-                                         .arg(badgeBg, badgeBorder));
-
+        m_expiryLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;").arg(badgeColor.name()));
         m_expiryBadge->setToolTip(tr("Expires: %1").arg(DisplayTime(sub.expire, QLocale::ShortFormat)));
         m_expiryBadge->show();
     }
@@ -540,77 +636,115 @@ void SubscriptionInfoCard::updateData()
         m_expiryBadge->hide();
     }
 
-    // 4. Announcement Pill Badge
+    const bool isManual = (m_group->sub_update_interval > 0);
+    const int displayInterval = isManual ? m_group->sub_update_interval : sub.server_interval;
+    const bool hasInterval = (displayInterval > 0);
+
+    if (hasInterval)
+    {
+        if (isManual)
+        {
+            m_intervalLabel->setText(tr("Custom: %1h").arg(displayInterval));
+            QString tip = tr("Manual update override: every %1 hours").arg(displayInterval);
+            if (sub.server_interval > 0)
+            {
+                tip += QStringLiteral("\n") + tr("Server hint: %1h").arg(sub.server_interval);
+            }
+            m_intervalBadge->setToolTip(tip);
+        }
+        else
+        {
+            m_intervalLabel->setText(tr("Server: %1h").arg(displayInterval));
+            m_intervalBadge->setToolTip(tr("Automatic update from server: every %1 hours").arg(displayInterval));
+        }
+
+        m_intervalIcon->setPixmap(renderVectorPixmap("sync", textSecondary, 12));
+        m_intervalLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary.name()));
+    }
+    else
+    {
+        m_intervalBadge->hide();
+        m_sepInterval->hide();
+    }
+
+    const bool hasWeb = !sub.web_url.isEmpty() && (sub.web_url.startsWith("http://", Qt::CaseInsensitive) || sub.web_url.startsWith("https://", Qt::CaseInsensitive));
+    const bool hasSupport = !sub.support_url.isEmpty() && (sub.support_url.startsWith("http://", Qt::CaseInsensitive) || sub.support_url.startsWith("https://", Qt::CaseInsensitive) || sub.support_url.startsWith("tg://", Qt::CaseInsensitive));
+
+    m_btnPortal->setVisible(hasWeb);
+    if (hasWeb)
+        m_btnPortal->setToolTip(tr("Website / Portal: %1").arg(sub.web_url.toHtmlEscaped()));
+
+    m_btnSupport->setVisible(hasSupport);
+    if (hasSupport)
+        m_btnSupport->setToolTip(tr("Technical Support: %1").arg(sub.support_url.toHtmlEscaped()));
+
+    m_sepActions->setVisible(hasWeb || hasSupport);
+
     const QString cleanAnnounce = sub.announce.trimmed();
     const bool hasAnnounce = !cleanAnnounce.isEmpty() && cleanAnnounce.compare("base64:", Qt::CaseInsensitive) != 0;
 
     if (hasAnnounce)
     {
         m_fullAnnounce = cleanAnnounce;
-        m_announceBadge->setToolTip(cleanAnnounce);
-        m_announceLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textSecondary));
-        updateAnnouncementLayout();
+        m_announceIcon->setPixmap(renderVectorPixmap("info", tk.accent, 12));
+        m_announceBadge->setToolTip(cleanAnnounce.toHtmlEscaped());
     }
     else
     {
         m_fullAnnounce.clear();
         m_announceBadge->hide();
+        m_sepAnnounce->hide();
     }
 
-    // 5. Portal / Support Buttons
-    const bool hasWeb = !sub.web_url.isEmpty() && (sub.web_url.startsWith("http://", Qt::CaseInsensitive) || sub.web_url.startsWith("https://", Qt::CaseInsensitive));
-    const bool hasSupport = !sub.support_url.isEmpty() && (sub.support_url.startsWith("http://", Qt::CaseInsensitive) || sub.support_url.startsWith("https://", Qt::CaseInsensitive) || sub.support_url.startsWith("tg://", Qt::CaseInsensitive));
+    updateAnnouncementLayout();
 
-    m_btnPortal->setVisible(hasWeb);
-    if (hasWeb)
-        m_btnPortal->setToolTip(tr("Website / Portal: %1").arg(sub.web_url));
-
-    m_btnSupport->setVisible(hasSupport);
-    if (hasSupport)
-        m_btnSupport->setToolTip(tr("Technical Support: %1").arg(sub.support_url));
-
-    setFixedHeight(26);
     show();
-    syncTableOffset();
+    emit cardVisibilityChanged();
 }
 
 void SubscriptionInfoCard::applyTheme()
 {
     const auto &tk = themeManager()->tokens;
-    const QColor winBg = qApp->palette().color(QPalette::Active, QPalette::Window);
-    const bool isDark = (winBg.lightness() <= 128);
-
-    const QString barBg = winBg.name();
-    const QString chipBg = isDark ? QStringLiteral("#24303F") : QStringLiteral("#FFFFFF");
-    const QString chipBorder = isDark ? QStringLiteral("#3E4C5F") : QStringLiteral("#CBD5E1");
-    const QString hoverBg = isDark ? QStringLiteral("#2A374A") : QStringLiteral("#E2E8F0");
+    const QPalette pal = qApp->palette();
+    const bool isDark = pal.color(QPalette::Window).lightness() <= 128;
+    const QColor cardBg = pal.color(QPalette::Window);
+    const QColor textPrimary = pal.color(QPalette::WindowText);
+    const QColor chipBg = pal.color(QPalette::Button);
+    const QColor border = pal.color(QPalette::Mid);
+    const QString badgeBorder = isDark ? QStringLiteral("rgba(255, 255, 255, 0.18)") : QStringLiteral("rgba(0, 0, 0, 0.15)");
 
     setStyleSheet(QStringLiteral(
                       "QFrame#SubscriptionInfoCard {"
                       "  background-color: %1;"
-                      "  border: none;"
+                      "  border-bottom: 1px solid %2;"
                       "}"
-                      "QFrame#subAnnounceBadge {"
+                      "QLabel {"
+                      "  color: %3;"
+                      "}"
+                      "QFrame[frameShape=\"5\"] {"
+                      "  color: %2;"
                       "  background-color: %2;"
-                      "  border: 1px solid %3;"
-                      "  border-radius: 3px;"
+                      "  max-width: 1px;"
+                      "}"
+                      "QFrame#subExpiryBadge, QFrame#subAnnounceBadge, QFrame#subIntervalBadge {"
+                      "  background-color: %4;"
+                      "  border: 1px solid %5;"
+                      "  border-radius: 4px;"
                       "}"
                       "QFrame#subAnnounceBadge:hover {"
-                      "  background-color: %4;"
-                      "  border-color: %5;"
+                      "  border-color: %6;"
                       "}"
-                      "QToolButton {"
-                      "  background-color: %2;"
-                      "  border: 1px solid %3;"
-                      "  border-radius: 3px;"
-                      "  padding: 1px 4px;"
-                      "  color: %6;"
-                      "}"
-                      "QToolButton:hover {"
+                      "QPushButton {"
                       "  background-color: %4;"
-                      "  border-color: %5;"
+                      "  border: 1px solid %5;"
+                      "  border-radius: 4px;"
+                      "  padding: 2px 6px;"
+                      "  color: %3;"
+                      "}"
+                      "QPushButton:hover {"
+                      "  border-color: %6;"
                       "}")
-                      .arg(barBg, chipBg, chipBorder, hoverBg, tk.accent.name(), tk.onSurface.name()));
+                      .arg(cardBg.name(), border.name(), textPrimary.name(), chipBg.name(), badgeBorder, tk.accent.name()));
 
     m_announceIcon->setPixmap(renderVectorPixmap("info", tk.accent, 12));
     m_btnPortal->setIcon(QIcon(renderVectorPixmap("globe", tk.onSurface, 12)));

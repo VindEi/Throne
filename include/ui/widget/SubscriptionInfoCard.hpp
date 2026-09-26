@@ -10,8 +10,7 @@ namespace Configs
 
 class QLabel;
 class QProgressBar;
-class QToolButton;
-class QTableView;
+class QPushButton;
 class QResizeEvent;
 class QEvent;
 
@@ -22,7 +21,6 @@ public:
     explicit SubscriptionInfoCard(QWidget *parent = nullptr);
     ~SubscriptionInfoCard() override = default;
 
-    void setTableView(QTableView *table);
     void setGroup(const std::shared_ptr<Configs::Group> &group);
     void applyTheme();
     [[nodiscard]] bool hasSubscription() const;
@@ -30,8 +28,8 @@ public:
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
-public slots:
-    void syncTableOffset();
+signals:
+    void cardVisibilityChanged();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -45,19 +43,29 @@ private:
 
     std::shared_ptr<Configs::Group> m_group;
     QString m_fullAnnounce;
-    QTableView *m_tableView = nullptr;
 
     QLabel *m_titleLabel = nullptr;
     QProgressBar *m_progressBar = nullptr;
+    QLabel *m_quotaLabel = nullptr;
 
     QFrame *m_expiryBadge = nullptr;
     QLabel *m_expiryIcon = nullptr;
     QLabel *m_expiryLabel = nullptr;
 
+    QFrame *m_intervalBadge = nullptr;
+    QLabel *m_intervalIcon = nullptr;
+    QLabel *m_intervalLabel = nullptr;
+
     QFrame *m_announceBadge = nullptr;
     QLabel *m_announceIcon = nullptr;
     QLabel *m_announceLabel = nullptr;
 
-    QToolButton *m_btnPortal = nullptr;
-    QToolButton *m_btnSupport = nullptr;
+    QFrame *m_sepQuota = nullptr;
+    QFrame *m_sepExpiry = nullptr;
+    QFrame *m_sepInterval = nullptr;
+    QFrame *m_sepAnnounce = nullptr;
+    QFrame *m_sepActions = nullptr;
+
+    QPushButton *m_btnPortal = nullptr;
+    QPushButton *m_btnSupport = nullptr;
 };

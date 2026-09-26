@@ -12,14 +12,16 @@ namespace Configs
 {
     struct SubUserInfo {
         bool valid = false;
-        qint64 upload = 0;       // Bytes
-        qint64 download = 0;     // Bytes
-        qint64 total = 0;        // Bytes (0 = unlimited)
-        qint64 expire = 0;       // Unix epoch seconds (0 = no expiry)
-        QString title;           // Profile Title (e.g. "WindyDay")
-        QString web_url;         // Website / Dashboard URL
-        QString support_url;     // Support / Telegram URL
-        QString announce;        // Announcement text
+        bool has_quota = false;
+        qint64 upload = 0;
+        qint64 download = 0;
+        qint64 total = 0;
+        qint64 expire = 0;
+        QString title;
+        QString web_url;
+        QString support_url;
+        QString announce;
+        int server_interval = 0;
 
         [[nodiscard]] qint64 used() const { return upload + download; }
         [[nodiscard]] qint64 remaining() const { return (total > used()) ? (total - used()) : 0; }
@@ -31,6 +33,9 @@ namespace Configs
             if (expire <= 0) return false;
             return QDateTime::currentSecsSinceEpoch() > expire;
         }
+
+        [[nodiscard]] QJsonObject toJson() const;
+        static SubUserInfo fromJson(const QJsonObject &json);
     };
 
     SubUserInfo ParseSubUserInfo(const QString &info);
@@ -99,8 +104,9 @@ namespace Configs
         QString name = "";
         QString url = "";
         QString info = "";
+        SubUserInfo sub_info;
         qint64 sub_last_update = 0;
-        int sub_update_interval = 0; // In hours (0 = Default/Auto, >0 = custom)
+        int sub_update_interval = 0;
         SubscriptionOptions sub_options;
         int front_proxy_id = -1;
         int landing_proxy_id = -1;
@@ -118,7 +124,7 @@ namespace Configs
 
         Group() = default;
 
-        [[nodiscard]] SubUserInfo GetSubUserInfo() const { return ParseSubUserInfo(info); }
+        [[nodiscard]] SubUserInfo GetSubUserInfo() const { return sub_info.valid ? sub_info : ParseSubUserInfo(info); }
 
         void clearCalculatedColumnWidth();
 

@@ -9,35 +9,36 @@
 #include "include/database/GroupsRepo.h"
 #include "include/ui/mainwindow.h"
 
-QString ParseSubInfo(const QString &info, int updateIntervalHours = 0) {
-    auto sub = Configs::ParseSubUserInfo(info);
+QString ParseSubInfo(const Configs::SubUserInfo &sub, int updateIntervalHours = 0) {
     if (!sub.valid) return "";
 
     QStringList parts;
-    QString usedStr = ReadableSize(sub.used());
-    QString totalStr = (sub.total > 0) ? ReadableSize(sub.total) : QString::fromUtf8("\u221E");
-    QString remainStr = (sub.total > 0) ? ReadableSize(sub.remaining()) : QString::fromUtf8("\u221E");
-
-    parts << QObject::tr("Used: %1 / %2 (%3 remain)").arg(usedStr, totalStr, remainStr);
+    if (sub.has_quota) {
+        QString usedStr = ReadableSize(sub.used());
+        QString remainStr = (sub.total > 0) ? ReadableSize(sub.remaining()) : QString::fromUtf8("\u221E");
+        QString expireStr = (sub.expire > 0) ? DisplayTime(sub.expire, QLocale::ShortFormat) : QObject::tr("None");
+        parts << QObject::tr("Used: %1 Remain: %2 Expire: %3").arg(usedStr, remainStr, expireStr);
+    }
 
     if (sub.expire > 0) {
         qint64 now = QDateTime::currentSecsSinceEpoch();
         if (sub.isExpired()) {
-            parts << QObject::tr("Expired (%1)").arg(DisplayTime(sub.expire, QLocale::ShortFormat));
+            parts << QObject::tr("Expired");
         } else {
             qint64 diffSecs = sub.expire - now;
             if (diffSecs < 86400) {
                 qint64 diffHours = std::max<qint64>(1, diffSecs / 3600);
-                parts << QObject::tr("Expires in %1h (%2)").arg(diffHours).arg(DisplayTime(sub.expire, QLocale::ShortFormat));
+                parts << QObject::tr("%1h left").arg(diffHours);
             } else {
                 qint64 diffDays = diffSecs / 86400;
-                parts << QObject::tr("Expires in %1d (%2)").arg(diffDays).arg(DisplayTime(sub.expire, QLocale::ShortFormat));
+                parts << QObject::tr("%1d left").arg(diffDays);
             }
         }
     }
 
-    if (updateIntervalHours > 0) {
-        parts << QObject::tr("Auto-update: %1h").arg(updateIntervalHours);
+    int effectiveInterval = updateIntervalHours > 0 ? updateIntervalHours : sub.server_interval;
+    if (effectiveInterval > 0) {
+        parts << QObject::tr("Auto-update: %1h").arg(effectiveInterval);
     }
 
     return parts.join(" | ");
@@ -51,6 +52,8 @@ GroupItem::GroupItem(QWidget *parent, const std::shared_ptr<Configs::Group> &ent
     this->ent = ent;
     this->item = item;
     if (ent == nullptr) return;
+
+    ui->subinfo->setTextFormat(Qt::PlainText);
 
     connect(this, &GroupItem::edit_clicked, this, &GroupItem::on_edit_clicked);
     connect(Subscription::updater(), &Subscription::GroupUpdater::asyncUpdateCallback, this, [=,this](int gid) { if (gid == this->ent->id) refresh_data(); });
@@ -80,7 +83,7 @@ void GroupItem::refresh_data() {
         if (ent->sub_last_update != 0) {
             info << tr("Last update: %1").arg(DisplayTime(ent->sub_last_update, QLocale::ShortFormat));
         }
-        auto subinfo = ParseSubInfo(ent->info, ent->sub_update_interval);
+        auto subinfo = ParseSubInfo(ent->GetSubUserInfo(), ent->sub_update_interval);
         if (!subinfo.isEmpty()) {
             info << subinfo;
         }

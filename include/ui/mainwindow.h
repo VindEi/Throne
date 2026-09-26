@@ -1,8 +1,6 @@
 #pragma once
 
 #include <QMainWindow>
-#include "include/ui/widget/SubscriptionInfoCard.hpp"
-
 #include <include/global/HTTPRequestHelper.hpp>
 #ifndef Q_MOC_RUN
 #include <core/gen/libcore.pb.h>
@@ -121,6 +119,8 @@ public:
     void show_group_tab_menu(const QPoint &tabBarPos);
 
     void refresh_groups();
+
+    void updateTabToolTip(int gid);
 
     void refresh_status(const QString &traffic_update = "");
 
@@ -294,9 +294,6 @@ private:
     class RuntimeStatsWidget *runtimeStatsWidget = nullptr;
     std::atomic<qint64> lastUpdatedMs = QDateTime::currentMSecsSinceEpoch();
     DataViewHtmlGenerator dataViewHtmlGenerator_;
-
-    QWidget *m_tableContainer = nullptr;
-    SubscriptionInfoCard *m_subInfoCard = nullptr;
 
     QList<QShortcut*> hiddenMenuShortcuts;
 

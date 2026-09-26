@@ -13,6 +13,7 @@
 #include "include/database/ProfilesRepo.h"
 #include "include/ui/group/dialog_edit_group_advanced.h"
 
+
 #define ADJUST_SIZE runOnThread([=,this] { adjustSize(); adjustPosition(mainwindow); }, this);
 
 DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWidget *parent) : QDialog(parent), ui(new Ui::DialogEditGroup) {
@@ -38,7 +39,11 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
 
     ui->sub_update_interval->setRange(0, 720);
     ui->sub_update_interval->setValue(ent->sub_update_interval);
-    ui->sub_update_interval->setSpecialValueText(tr("Default (Auto / Global)"));
+    if (ent->sub_info.server_interval > 0) {
+        ui->sub_update_interval->setSpecialValueText(tr("Default (Server: %1h)").arg(ent->sub_info.server_interval));
+    } else {
+        ui->sub_update_interval->setSpecialValueText(tr("Default (Auto / Global)"));
+    }
     ui->sub_update_interval->setSuffix(tr(" hours"));
 
     ui->type->setCurrentIndex(ent->url.isEmpty() ? 0 : 1);
@@ -225,9 +230,15 @@ void DialogEditGroup::accept() {
             return;
         }
     }
+    const QString newUrl = ui->url->text().trimmed();
+    if (ent->url != newUrl) {
+        ent->sub_info = Configs::SubUserInfo{};
+        ent->sub_last_update = 0;
+        ent->info.clear();
+    }
     ent->name = ui->name->text().trimmed();
     ent->auto_clear_unavailable = ui->auto_clear_unavailable->isChecked();
-    ent->url = ui->url->text().trimmed();
+    ent->url = newUrl;
     ent->skip_auto_update = ui->skip_auto_update->isChecked();
     ent->sub_update_interval = ui->sub_update_interval->value();
     ent->sub_options = subOptions;
