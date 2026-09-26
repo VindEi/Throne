@@ -37,6 +37,7 @@ void GroupsRepo::createTables() const {
                 traffic_sort_by INTEGER NOT NULL DEFAULT 0,
                 test_items_to_show INTEGER NOT NULL DEFAULT 0,
                 type_sort_by INTEGER NOT NULL DEFAULT 0,
+                sub_options_json TEXT NOT NULL DEFAULT '{}',
                 created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
             )
@@ -46,6 +47,8 @@ void GroupsRepo::createTables() const {
             db.exec("ALTER TABLE groups ADD COLUMN type_sort_by INTEGER NOT NULL DEFAULT 0");
         if (!groupsColumnExists("sub_update_interval"))
             db.exec("ALTER TABLE groups ADD COLUMN sub_update_interval INTEGER NOT NULL DEFAULT 0");
+        if (!groupsColumnExists("sub_options_json"))
+            db.exec("ALTER TABLE groups ADD COLUMN sub_options_json TEXT NOT NULL DEFAULT '{}'");
 
         db.exec(R"(
             CREATE TABLE IF NOT EXISTS groups_order (
@@ -76,6 +79,7 @@ void GroupsRepo::createTables() const {
         json["info"] = group->info;
         json["sub_last_update"] = static_cast<qint64>(group->sub_last_update);
         json["sub_update_interval"] = group->sub_update_interval;
+        json["sub_options"] = group->sub_options.ToJson();
         json["front_proxy_id"] = group->front_proxy_id;
         json["landing_proxy_id"] = group->landing_proxy_id;
         json["column_width"] = QListInt2QJsonArray(group->column_width);
@@ -101,6 +105,7 @@ void GroupsRepo::createTables() const {
         group->info = json["info"].toString();
         group->sub_last_update = json["sub_last_update"].toVariant().toLongLong();
         group->sub_update_interval = json["sub_update_interval"].toInt(0);
+        group->sub_options = SubscriptionOptions::FromJson(json["sub_options"].toObject());
         group->front_proxy_id = json["front_proxy_id"].toInt();
         group->landing_proxy_id = json["landing_proxy_id"].toInt();
         group->column_width = QJsonArray2QListInt(json["column_width"].toArray());
@@ -123,14 +128,15 @@ void GroupsRepo::createTables() const {
         
         QString columnWidthJson = QString::fromUtf8(columnWidthDoc.toJson(QJsonDocument::Compact));
         QString profilesJson = QString::fromUtf8(profilesDoc.toJson(QJsonDocument::Compact));
-        
+        QString subOptionsJson = QString::fromUtf8(QJsonDocument(group->sub_options.ToJson()).toJson(QJsonDocument::Compact));
+
         db.exec(R"(
             INSERT INTO groups
             (id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update, sub_update_interval,
              front_proxy_id, landing_proxy_id,
              column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
-             type_sort_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             type_sort_by, sub_options_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 archive = excluded.archive, skip_auto_update = excluded.skip_auto_update,
                 auto_clear_unavailable = excluded.auto_clear_unavailable, name = excluded.name,
@@ -140,7 +146,7 @@ void GroupsRepo::createTables() const {
                 column_width_json = excluded.column_width_json, profiles_json = excluded.profiles_json,
                 scroll_last_profile = excluded.scroll_last_profile, test_sort_by = excluded.test_sort_by,
                 traffic_sort_by = excluded.traffic_sort_by, test_items_to_show = excluded.test_items_to_show,
-                type_sort_by = excluded.type_sort_by,
+                type_sort_by = excluded.type_sort_by, sub_options_json = excluded.sub_options_json,
                 updated_at = strftime('%s', 'now')
         )",
             id,
@@ -160,7 +166,8 @@ void GroupsRepo::createTables() const {
             static_cast<int>(group->test_sort_by),
             static_cast<int>(group->traffic_sort_by),
             static_cast<int>(group->test_items_to_show),
-            static_cast<int>(group->type_sort_by)
+            static_cast<int>(group->type_sort_by),
+            subOptionsJson.toStdString()
         );
     }
 
@@ -169,7 +176,7 @@ void GroupsRepo::createTables() const {
             SELECT id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update, sub_update_interval,
                    front_proxy_id, landing_proxy_id,
                    column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
-                   type_sort_by
+                   type_sort_by, sub_options_json
             FROM groups WHERE id = ?
         )", id);
         if (!query || !query->executeStep()) {
@@ -210,6 +217,10 @@ void GroupsRepo::createTables() const {
         json["traffic_sort_by"] = query->getColumn(15).getInt();
         json["test_items_to_show"] = query->getColumn(16).getInt();
         json["type_sort_by"] = query->getColumn(17).getInt();
+        if (const auto subOptionsDoc = QJsonDocument::fromJson(QByteArray(query->getColumn(18).getText()));
+            subOptionsDoc.isObject()) {
+            json["sub_options"] = subOptionsDoc.object();
+        }
 
         auto group = groupFromJson(json);
         // Refreshes could map several identical servers onto one id, leaving it in the persisted list once per server (#1775).

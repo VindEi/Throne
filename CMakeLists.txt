@@ -244,6 +244,9 @@ set(PROJECT_SOURCES
         include/ui/group/dialog_edit_group.h
         src/ui/group/dialog_edit_group.cpp
         include/ui/group/dialog_edit_group.ui
+        include/ui/group/dialog_edit_group_advanced.h
+        src/ui/group/dialog_edit_group_advanced.cpp
+        include/ui/group/dialog_edit_group_advanced.ui
 
         include/ui/profile/edit_chain.h
         src/ui/profile/edit_chain.cpp
@@ -525,6 +528,7 @@ set(PROJECT_SOURCES
         include/database/OtpProfilesRepo.h
         include/database/SettingsRepo.h
         include/database/TrafficStatsRepo.h
+        include/database/MarkersRepo.h
 
         include/database/entities/Profile.h
         include/database/entities/Group.h
@@ -543,6 +547,7 @@ set(PROJECT_SOURCES
         src/database/RoutesRepo.cpp
         src/database/OtpProfilesRepo.cpp
         src/database/TrafficStatsRepo.cpp
+        src/database/MarkersRepo.cpp
 
         include/database/DatabaseManager.h
         src/database/DatabaseManager.cpp

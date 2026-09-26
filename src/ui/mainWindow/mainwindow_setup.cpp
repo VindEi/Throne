@@ -262,6 +262,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     parallelCoreCallPool->setMaxThreadCount(10);
     testRunner = std::make_unique<TestRunner>(this);
+    Subscription::updater()->SetUrlTester([this](const QList<int> &profileIDs, const Subscription::GroupUpdater::Finish &done) {
+        testRunner->queueUrlTests(profileIDs, done);
+    });
     ui->menu_start->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(ui->menu_start, &QAction::triggered, this, [=,this]() { profile_start(); });
     connect(ui->menu_stop, &QAction::triggered, this, [=,this]() { profile_stop(false, false, true); });
@@ -766,8 +769,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         Configs::dataManager->settingsRepo->Save();
     });
     connect(ui->actionStart_with_system, &QAction::triggered, this, [=,this](bool checked) {
-        AutoRun_SetEnabled(checked);
-        ui->actionStart_with_system->setChecked(checked);
+        if (QString error; !AutoRun_SetEnabled(checked, &error)) {
+            MessageBoxWarning(tr("Start with system"), tr("Could not update the autostart entry:") + "\n" + error);
+        }
+        ui->actionStart_with_system->setChecked(AutoRun_IsEnabled());
     });
     connect(ui->actionAllow_LAN, &QAction::triggered, this, [=,this](bool checked) {
         Configs::dataManager->settingsRepo->inbound_address = checked ? "::" : "127.0.0.1";
@@ -1130,6 +1135,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
     else if (tray->isVisible()) HideWindow(this);
+    // Deferred: GetMessageBoxParent() falls back to the mainwindow global, which is only set once this constructor returns.
+    QTimer::singleShot(0, this, &MainWindow::showHijackDeprecationNotice);
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
 
@@ -1148,5 +1155,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 }
 
 MainWindow::~MainWindow() {
+    Subscription::updater()->SetUrlTester(nullptr);
     delete ui;
 }
