@@ -257,6 +257,7 @@ namespace Configs {
         if (query.hasQueryItem("vcn")) verifyPeerCertByName = query.queryItemValue("vcn", QUrl::FullyDecoded);
         if (query.hasQueryItem("alpn")) alpn = query.queryItemValue("alpn", QUrl::FullyDecoded).split(",");
         if (query.hasQueryItem("fp")) fingerprint = query.queryItemValue("fp");
+        if (query.hasQueryItem("ech")) echConfigList = query.queryItemValue("ech", QUrl::FullyDecoded);
         return true;
     }
 
@@ -267,6 +268,7 @@ namespace Configs {
         if (object.contains("verifyPeerCertByName")) verifyPeerCertByName = object["verifyPeerCertByName"].toString();
         if (object.contains("alpn")) alpn = QJsonArray2QListString(object["alpn"].toArray());
         if (object.contains("fingerprint")) fingerprint = object["fingerprint"].toString();
+        if (object.contains("echConfigList")) echConfigList = object["echConfigList"].toString();
         return true;
     }
 
@@ -292,6 +294,7 @@ namespace Configs {
         if (!verifyPeerCertByName.isEmpty()) query.addQueryItem("vcn", verifyPeerCertByName);
         if (!alpn.isEmpty()) query.addQueryItem("alpn", alpn.join(","));
         if (!fingerprint.isEmpty()) query.addQueryItem("fp", fingerprint);
+        if (!echConfigList.isEmpty()) query.addQueryItem("ech", echConfigList);
         return query.toString(QUrl::FullyEncoded);
     }
 
@@ -304,6 +307,7 @@ namespace Configs {
             object["alpn"] = QListStr2QJsonArray(alpn);
         }
         if (!fingerprint.isEmpty()) object["fingerprint"] = fingerprint;
+        if (!echConfigList.isEmpty()) object["echConfigList"] = echConfigList;
         return object;
     }
 
@@ -901,6 +905,8 @@ namespace Configs {
         } else if (security == "tls") {
             if (!TLS->serverName.isEmpty()) object["sni"] = toAceHost(TLS->serverName);
             if (!TLS->fingerprint.isEmpty()) object["fingerprint"] = TLS->fingerprint;
+            if (!TLS->echConfigList.isEmpty())
+                object["ech"] = TLS->echConfigList.contains("://") ? TLS->echConfigList : QStringLiteral("static");
         }
         return object;
     }

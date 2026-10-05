@@ -31,6 +31,12 @@ namespace Configs
         QStringList config;
         QString config_path;
         QString serverName;
+        QString resolver;
+
+        static QStringList NormalizeConfig(const QStringList& items);
+        void SetQueryTarget(const QString& target);
+        QString QueryTarget() const;
+        QString ConfigBase64() const;
 
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;

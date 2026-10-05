@@ -79,7 +79,7 @@ namespace Configs {
         mergeUrlQuery(query, streamSetting->ExportToLink());
         mergeUrlQuery(query, multiplex->ExportToLink());
 
-        if (!query.isEmpty()) url.setQuery(query);
+        if (!query.isEmpty()) url.setQuery(query.toString(QUrl::FullyEncoded).replace('+', "%2B"), QUrl::TolerantMode);
         return url.toString(QUrl::FullyEncoded);
     }
 

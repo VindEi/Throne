@@ -85,7 +85,7 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         connect(ui->tls_spoof_state, &QComboBox::currentIndexChanged, this, syncSpoofFields);
         syncSpoofFields();
         ui->enable_ech->setChecked(tlsObj->ech->enabled);
-        ui->ech_server_name->setText(tlsObj->ech->serverName);
+        ui->ech_server_name->setText(tlsObj->ech->QueryTarget());
 
         if (!tlsObj->ech->config.isEmpty()) {
             ui->ech_config->setText("Already set");
@@ -237,7 +237,7 @@ void EditAdvanced::accept() {
         tlsObj->spoof = ui->tls_spoof->text().trimmed();
         tlsObj->spoof_method = ui->tls_spoof_method->currentText().trimmed();
         tlsObj->ech->enabled = ui->enable_ech->isChecked();
-        tlsObj->ech->serverName = ui->ech_server_name->text().trimmed();
+        tlsObj->ech->SetQueryTarget(ui->ech_server_name->text());
         tlsObj->ech->config = CACHE.echConfig;
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
@@ -272,7 +272,7 @@ void EditAdvanced::on_ech_config_clicked() {
     bool ok;
     auto txt = QInputDialog::getMultiLineText(this, tr("ECH Config"), "", CACHE.echConfig.join("\n"), &ok);
     if (ok) {
-        CACHE.echConfig = txt.split("\n", Qt::SkipEmptyParts);
+        CACHE.echConfig = Configs::ECH::NormalizeConfig(txt.split("\n", Qt::SkipEmptyParts));
         if (!CACHE.echConfig.isEmpty()) {
             ui->ech_config->setText("Already set");
         } else {

@@ -21,6 +21,7 @@ namespace Configs {
         QString verifyPeerCertByName;
         QStringList alpn;
         QString fingerprint;
+        QString echConfigList;
 
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;

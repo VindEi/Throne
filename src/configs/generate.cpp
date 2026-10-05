@@ -55,6 +55,7 @@ namespace Configs {
             constexpr auto dnsTailscale = "dns-tailscale";
             constexpr auto dnsHosts = "dns-hosts";
             constexpr auto dnsVpnPrefix = "dns-vpn";
+            constexpr auto dnsEchPrefix = "dns-ech";
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
@@ -202,6 +203,7 @@ namespace Configs {
             QList<QString> singIngressTags;
             QList<coreBridgeConfig> singToXrayBridges;
             QList<coreBridgeConfig> xrayToSingBridges;
+            QMap<QString, QString> echResolvers;
             std::shared_ptr<BuildConfigResult> result = std::make_shared<BuildConfigResult>();
         };
 
@@ -883,6 +885,7 @@ namespace Configs {
             int port = -1;
             QString type = "udp";
             QString path = "";
+            if (address.startsWith("udp://")) addr = addr.mid(6);
             if (address.startsWith("tcp://")) {
                 type = "tcp";
                 addr = addr.replace("tcp://", "");
@@ -952,6 +955,9 @@ namespace Configs {
         void buildDNSSection(BuildContext &ctx, bool useDnsObj = true) {
             const auto &settings = *dataManager->settingsRepo;
             if (settings.use_dns_object && useDnsObj) {
+                if (!ctx.echResolvers.isEmpty()) {
+                    MW_show_log(QObject::tr("Custom DNS object is enabled; ECH queries will not use dedicated resolvers and may be subject to DNS interference."));
+                }
                 ctx.result->coreConfig["dns"] = QString2QJsonObject(settings.dns_object);
                 return;
             }
@@ -1130,6 +1136,35 @@ namespace Configs {
             auto dnsLocalObj = buildDnsObj(ctx, dnsLocalAddress);
             dnsLocalObj["tag"] = tags::dnsLocal;
             servers += dnsLocalObj;
+
+            int echDnsIdx = 0;
+            for (auto it = ctx.echResolvers.cbegin(); it != ctx.echResolvers.cend(); ++it) {
+                const QString &sName = it.key();
+                const QString &res = it.value();
+
+                if (res.contains("://")) {
+                    const QString scheme = res.section("://", 0, 0).toLower();
+                    if (scheme != "udp" && scheme != "tcp" && scheme != "tls" &&
+                        scheme != "https" && scheme != "quic" && scheme != "h3") {
+                        MW_show_log(QObject::tr("Skipping ECH resolver with unsupported scheme for sing-box: %1").arg(res));
+                        continue;
+                    }
+                }
+
+                const QString tag = hopTag(tags::dnsEchPrefix, echDnsIdx++);
+
+                auto echDnsObj = buildDnsObj(ctx, res);
+                echDnsObj["tag"] = tag;
+                echDnsObj["domain_resolver"] = tags::dnsLocal;
+                servers.append(echDnsObj);
+
+                headRules.prepend(QJsonObject{
+                    {"domain", QJsonArray{sName}},
+                    {"query_type", QJsonArray{"HTTPS"}},
+                    {"action", "route"},
+                    {"server", tag},
+                });
+            }
 
             if (!headRules.isEmpty()) {
                 for (const auto &rule : rules) headRules.append(rule);
@@ -1359,6 +1394,22 @@ namespace Configs {
             return socksOutbound != nullptr && socksOutbound->version == 4;
         }
 
+        void registerEchResolver(BuildContext &ctx, const std::shared_ptr<Profile> &ent) {
+            if (ent == nullptr || ent->outbound == nullptr || !ent->outbound->HasTLS()) return;
+            auto tls = ent->outbound->GetTLS();
+            const auto &e = tls->ech;
+            if (!tls->enabled || !e->enabled || e->resolver.isEmpty()) return;
+            const QString rawName = !e->serverName.isEmpty() ? e->serverName : tls->server_name;
+            if (rawName.isEmpty()) return;
+            const QString sName = toAceHost(rawName);
+            auto it = ctx.echResolvers.constFind(sName);
+            if (it == ctx.echResolvers.constEnd()) {
+                ctx.echResolvers.insert(sName, e->resolver);
+            } else if (*it != e->resolver) {
+                MW_show_log(QObject::tr("ECH resolver conflict for %1: keeping %2, ignoring %3").arg(sName, *it, e->resolver));
+            }
+        }
+
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
             for (int idx = 0; idx < ents.size(); idx++)
             {
@@ -1387,6 +1438,7 @@ namespace Configs {
                         ctx.vpnStrictTag = tag;
                     if (gated) ctx.vpnGateTags << tag;
                 }
+                registerEchResolver(ctx, ent);
                 auto [object, error] = ent->outbound->Build();
                 if (!error.isEmpty())
                 {
@@ -2649,6 +2701,14 @@ namespace Configs {
         const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
         BuildContext ctx;
         ctx.forTest = true;
+
+        for (const auto &item : profiles) {
+            if (item == nullptr) continue;
+            for (int hopId : unwrapChain(item->id)) {
+                registerEchResolver(ctx, getProfile(hopId));
+            }
+        }
+
         buildDNSSection(ctx, false);
         if (!ctx.error.isEmpty())
         {

@@ -1091,6 +1091,26 @@
               </property>
              </widget>
             </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="label_xray_ech">
+              <property name="text">
+               <string>ECH Config List</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_ech</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="xray_ech">
+              <property name="toolTip">
+               <string>echConfigList: Base64 ECHConfigList, or domain+scheme://resolver.</string>
+              </property>
+              <property name="placeholderText">
+               <string>domain+resolver or Base64</string>
+              </property>
+             </widget>
+            </item>
            </layout>
           </widget>
          </item>
@@ -1780,6 +1800,7 @@
   <tabstop>xray_alpn</tabstop>
   <tabstop>xray_pinned_peer_cert_sha256</tabstop>
   <tabstop>xray_verify_peer_cert_by_name</tabstop>
+  <tabstop>xray_ech</tabstop>
   <tabstop>xray_reality_pbk</tabstop>
   <tabstop>xray_reality_sid</tabstop>
   <tabstop>xray_reality_spiderx</tabstop>
