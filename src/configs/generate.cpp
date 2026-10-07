@@ -1,6 +1,7 @@
 #include "include/configs/generate.h"
 #include "include/api/RPC.h"
 #include "include/configs/AutoSelectorPlan.h"
+#include "include/configs/common/utils.h"
 #include "include/global/Configs.hpp"
 
 #include <QApplication>
@@ -196,6 +197,8 @@ namespace Configs {
             QMap<QString, QString> vpnEndpointTags;
             QList<QString> vpnGateTags;
             QList<QString> vpnAuxTags;
+            // Names whose HTTPS record a hop's ECH needs to fetch; they must not resolve over the proxy they unlock.
+            QSet<QString> echQueryNames;
             // The main-profile tunnel set to Strict tunnel DNS; its resolvers take every remote query.
             QString vpnStrictTag;
             QList<QString> xrayIngressTags;
@@ -1060,6 +1063,17 @@ namespace Configs {
                 };
             }
 
+            if (!ctx.forTest && !ctx.echQueryNames.isEmpty()) {
+                QJsonArray names;
+                for (const auto &name : ctx.echQueryNames) names.append(name);
+                headRules += QJsonObject{
+                    {"domain", names},
+                    {"query_type", QJsonArray{"HTTPS"}},
+                    {"action", "route"},
+                    {"server", tags::dnsDirect},
+                };
+            }
+
             // Strict tunnel DNS takes every query that would otherwise go to dns-remote.
             QString remoteDnsTag = tags::dnsRemote;
             if (!ctx.forTest) {
@@ -1359,6 +1373,22 @@ namespace Configs {
             return socksOutbound != nullptr && socksOutbound->version == 4;
         }
 
+        // Without a static config the core fetches the ECH list over DNS before dialing the hop, and that
+        // lookup would otherwise end up at dns-remote, which itself dials through the hop.
+        void collectEchQueryName(BuildContext &ctx, const Profile &hop) {
+            if (!hop.outbound->HasTLS()) return;
+            const auto tls = hop.outbound->GetTLS();
+            if (!tls->enabled || !tls->ech->enabled) return;
+            if (!tls->ech->config.isEmpty() || !tls->ech->config_path.isEmpty()) return;
+            // The core queries query_server_name when set, else the TLS server name, else the dial host.
+            QString name = tls->ech->serverName;
+            if (name.isEmpty()) name = tls->server_name;
+            if (name.isEmpty()) name = hop.outbound->server;
+            name = toAceHost(name.trimmed());
+            if (name.isEmpty() || QHostAddress(name).protocol() != QAbstractSocket::UnknownNetworkLayerProtocol) return;
+            ctx.echQueryNames.insert(name);
+        }
+
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
             for (int idx = 0; idx < ents.size(); idx++)
             {
@@ -1394,6 +1424,7 @@ namespace Configs {
                     return;
                 }
                 object["tag"] = tag;
+                collectEchQueryName(ctx, *ent);
                 // Realm reads its STUN resolver off this key only; without it the hosts go through DNS rules.
                 if (auto hy = ent->Hysteria(); hy != nullptr && hy->RealmActive())
                     object["domain_resolver"] = QJsonObject{{"server", tags::dnsDirect}};
