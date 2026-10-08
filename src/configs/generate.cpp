@@ -198,7 +198,7 @@ namespace Configs {
             QList<QString> vpnGateTags;
             QList<QString> vpnAuxTags;
             // Names whose HTTPS record a hop's ECH needs to fetch; they must not resolve over the proxy they unlock.
-            QSet<QString> echQueryNames;
+            QStringList echQueryNames;
             // The main-profile tunnel set to Strict tunnel DNS; its resolvers take every remote query.
             QString vpnStrictTag;
             QList<QString> xrayIngressTags;
@@ -1064,10 +1064,8 @@ namespace Configs {
             }
 
             if (!ctx.forTest && !ctx.echQueryNames.isEmpty()) {
-                QJsonArray names;
-                for (const auto &name : ctx.echQueryNames) names.append(name);
                 headRules += QJsonObject{
-                    {"domain", names},
+                    {"domain", QJsonArray::fromStringList(ctx.echQueryNames)},
                     {"query_type", QJsonArray{"HTTPS"}},
                     {"action", "route"},
                     {"server", tags::dnsDirect},
@@ -1373,8 +1371,7 @@ namespace Configs {
             return socksOutbound != nullptr && socksOutbound->version == 4;
         }
 
-        // Without a static config the core fetches the ECH list over DNS before dialing the hop, and that
-        // lookup would otherwise end up at dns-remote, which itself dials through the hop.
+        // Without a static config the core fetches the ECH list over DNS first; via dns-remote that dials the same hop.
         void collectEchQueryName(BuildContext &ctx, const Profile &hop) {
             if (!hop.outbound->HasTLS()) return;
             const auto tls = hop.outbound->GetTLS();
@@ -1386,7 +1383,7 @@ namespace Configs {
             if (name.isEmpty()) name = hop.outbound->server;
             name = toAceHost(name.trimmed());
             if (name.isEmpty() || QHostAddress(name).protocol() != QAbstractSocket::UnknownNetworkLayerProtocol) return;
-            ctx.echQueryNames.insert(name);
+            if (!ctx.echQueryNames.contains(name)) ctx.echQueryNames << name;
         }
 
         void buildSingboxChain(BuildContext &ctx, const QList<std::shared_ptr<Profile>> &ents, const hopChainOptions &opts) {
