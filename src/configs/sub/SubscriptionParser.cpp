@@ -541,9 +541,8 @@ namespace Subscription {
             auto ent = Configs::ProfilesRepo::NewProfile("wireguard");
             if (!ent->Wireguard()->ParseFromLink(toQString(text))) return;
 
-            // Priority: in-file "Name =", name from the wrapping link, comment above [Peer], endpoint host.
             const auto names = extractWireGuardNames(text);
-            setNameIfEmpty(*ent, {names.explicitName, overrideName, names.peerComment, ent->Wireguard()->GetAddress()});
+            setNameIfEmpty(*ent, {overrideName, names.explicitName, names.peerComment});
             produce(ent);
         }
 
@@ -615,9 +614,7 @@ namespace Subscription {
             }
             if (!ent->outbound->ParseFromLink(str)) return;
 
-            if (std::string_view(profileType) == "wireguard") {
-                setNameIfEmpty(*ent, {overrideName, ent->Wireguard()->GetAddress()});
-            }
+            if (std::string_view(profileType) == "wireguard") setNameIfEmpty(*ent, {overrideName});
 
             produce(ent);
         }
@@ -646,7 +643,6 @@ namespace Subscription {
 
         void Parser::vpnLink(const QString &str, int depth) {
             auto raw = str.mid(6);
-            // The #fragment used to be discarded; it now names whatever the link contains.
             QString fragmentName;
             if (const auto frag = raw.indexOf('#'); frag != -1) {
                 fragmentName = QUrl::fromPercentEncoding(raw.mid(frag + 1).toUtf8()).trimmed();
