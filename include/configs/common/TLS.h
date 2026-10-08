@@ -76,6 +76,7 @@ namespace Configs
         QStringList curve_preferences;
         QStringList certificate;
         QString certificate_path;
+        QStringList certificate_sha256;
         QStringList certificate_public_key_sha256;
         QStringList client_certificate;
         QString client_certificate_path;

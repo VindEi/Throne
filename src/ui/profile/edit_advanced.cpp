@@ -87,22 +87,16 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->enable_ech->setChecked(tlsObj->ech->enabled);
         ui->ech_server_name->setText(tlsObj->ech->QueryTarget());
 
-        if (!tlsObj->ech->config.isEmpty()) {
-            ui->ech_config->setText("Already set");
-            CACHE.echConfig = tlsObj->ech->config;
-        }
-        if (!tlsObj->certificate_public_key_sha256.isEmpty()) {
-            ui->cert_sha256->setText("Already set");
-            CACHE.certSha256 = tlsObj->certificate_public_key_sha256;
-        }
-        if (!tlsObj->client_certificate.isEmpty()) {
-            ui->client_cert->setText("Already set");
-            CACHE.clientCert = tlsObj->client_certificate;
-        }
-        if (!tlsObj->client_key.isEmpty()) {
-            ui->client_key->setText("Already set");
-            CACHE.clientKey = tlsObj->client_key;
-        }
+        CACHE.echConfig = tlsObj->ech->config;
+        CACHE.certSha256 = tlsObj->certificate_sha256;
+        CACHE.certPublicKeySha256 = tlsObj->certificate_public_key_sha256;
+        CACHE.clientCert = tlsObj->client_certificate;
+        CACHE.clientKey = tlsObj->client_key;
+        setCacheButtonText(ui->ech_config, CACHE.echConfig);
+        setCacheButtonText(ui->cert_sha256, CACHE.certSha256);
+        setCacheButtonText(ui->cert_public_key_sha256, CACHE.certPublicKeySha256);
+        setCacheButtonText(ui->client_cert, CACHE.clientCert);
+        setCacheButtonText(ui->client_key, CACHE.clientKey);
     } else {
         ui->tls_box->hide();
     }
@@ -241,7 +235,8 @@ void EditAdvanced::accept() {
         tlsObj->ech->config = CACHE.echConfig;
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
-        tlsObj->certificate_public_key_sha256 = CACHE.certSha256;
+        tlsObj->certificate_sha256 = CACHE.certSha256;
+        tlsObj->certificate_public_key_sha256 = CACHE.certPublicKeySha256;
     }
 
     if (ent->outbound->HasQUIC()) {
@@ -268,54 +263,36 @@ void EditAdvanced::accept() {
     QDialog::accept();
 }
 
-void EditAdvanced::on_ech_config_clicked() {
+void EditAdvanced::setCacheButtonText(QPushButton *button, const QStringList &value) {
+    button->setText(value.isEmpty() ? tr("Not Set") : tr("Already set"));
+}
+
+void EditAdvanced::editCachedList(QPushButton *button, const QString &title, QStringList &target) {
     bool ok;
-    auto txt = QInputDialog::getMultiLineText(this, tr("ECH Config"), "", CACHE.echConfig.join("\n"), &ok);
-    if (ok) {
-        CACHE.echConfig = Configs::ECH::NormalizeConfig(txt.split("\n", Qt::SkipEmptyParts));
-        if (!CACHE.echConfig.isEmpty()) {
-            ui->ech_config->setText("Already set");
-        } else {
-            ui->ech_config->setText("Not Set");
-        }
-    }
+    const auto txt = QInputDialog::getMultiLineText(this, title, "", target.join("\n"), &ok);
+    if (!ok) return;
+    target = txt.split("\n", Qt::SkipEmptyParts);
+    setCacheButtonText(button, target);
+}
+
+void EditAdvanced::on_ech_config_clicked() {
+    editCachedList(ui->ech_config, tr("ECH Config"), CACHE.echConfig);
+    CACHE.echConfig = Configs::ECH::NormalizeConfig(CACHE.echConfig);
+    setCacheButtonText(ui->ech_config, CACHE.echConfig);
 }
 
 void EditAdvanced::on_client_cert_clicked() {
-    bool ok;
-    auto txt = QInputDialog::getMultiLineText(this, tr("Client Certificate"), "", CACHE.clientCert.join("\n"), &ok);
-    if (ok) {
-        CACHE.clientCert = txt.split("\n", Qt::SkipEmptyParts);
-        if (!CACHE.echConfig.isEmpty()) {
-            ui->client_cert->setText("Already set");
-        } else {
-            ui->client_cert->setText("Not Set");
-        }
-    }
+    editCachedList(ui->client_cert, tr("Client Certificate"), CACHE.clientCert);
 }
 
 void EditAdvanced::on_client_key_clicked() {
-    bool ok;
-    auto txt = QInputDialog::getMultiLineText(this, tr("Client Key"), "", CACHE.clientKey.join("\n"), &ok);
-    if (ok) {
-        CACHE.clientKey = txt.split("\n", Qt::SkipEmptyParts);
-        if (!CACHE.echConfig.isEmpty()) {
-            ui->client_key->setText("Already set");
-        } else {
-            ui->client_key->setText("Not Set");
-        }
-    }
+    editCachedList(ui->client_key, tr("Client Key"), CACHE.clientKey);
 }
 
 void EditAdvanced::on_cert_sha256_clicked() {
-    bool ok;
-    auto txt = QInputDialog::getMultiLineText(this, tr("Certificate sha256"), "", CACHE.certSha256.join("\n"), &ok);
-    if (ok) {
-        CACHE.certSha256 = txt.split("\n", Qt::SkipEmptyParts);
-        if (!CACHE.echConfig.isEmpty()) {
-            ui->cert_sha256->setText("Already set");
-        } else {
-            ui->cert_sha256->setText("Not Set");
-        }
-    }
+    editCachedList(ui->cert_sha256, tr("Certificate SHA256"), CACHE.certSha256);
+}
+
+void EditAdvanced::on_cert_public_key_sha256_clicked() {
+    editCachedList(ui->cert_public_key_sha256, tr("Public Key SHA256"), CACHE.certPublicKeySha256);
 }

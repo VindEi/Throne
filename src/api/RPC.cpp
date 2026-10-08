@@ -154,6 +154,10 @@ namespace API {
             connected_.store(true, std::memory_order_release);
         }
 
+        bool IsConnected() const {
+            return connected_.load(std::memory_order_acquire);
+        }
+
         int Call(const QString &methodName, const std::string &req,
                  std::vector<uint8_t> &rsp, int timeout_ms = 0) {
             if (!connected_.load(std::memory_order_acquire)) return CallNotConnected;
@@ -250,9 +254,15 @@ namespace API {
         channel->Reconnect(socket);
     }
 
+    bool Client::IsConnected() const {
+        return channel->IsConnected();
+    }
+
 #define NOT_OK      \
     *rpcOK = false; \
-    MW_show_log(QString("IPC call failed (code %1)\n").arg(status));
+    MW_show_log(status == LocalSocketChannel::CallNotConnected \
+                    ? QString("IPC call %1 failed: the core is not connected\n").arg(QLatin1String(__func__)) \
+                    : QString("IPC call %1 failed (code %2)\n").arg(QLatin1String(__func__)).arg(status));
 
     QString Client::Start(bool *rpcOK, const libcore::LoadConfigReq &request) {
         libcore::ErrorResp reply;

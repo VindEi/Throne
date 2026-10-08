@@ -19,6 +19,9 @@ namespace API {
 
         void Reconnect(QLocalSocket *socket);
 
+        // False until the GUI accepts the core's socket, which is after the core reports itself connected.
+        [[nodiscard]] bool IsConnected() const;
+
         // QString returns is error string
 
         QString Start(bool *rpcOK, const libcore::LoadConfigReq &request);

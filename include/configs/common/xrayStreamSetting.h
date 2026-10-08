@@ -89,7 +89,7 @@ namespace Configs {
         // extra/downloadSettings
         QString downloadSettings;
 
-        bool ParseExtraJson(QString str);
+        bool ParseExtraJson(const QString &str);
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;

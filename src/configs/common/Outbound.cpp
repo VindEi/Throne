@@ -26,8 +26,8 @@ namespace Configs {
                 if (tls->reality->enabled) {
                     info.label = QObject::tr("Reality");
                     info.level = SecurityLevel::Secure;
-                } else if (!tls->certificate_public_key_sha256.isEmpty()) {
-                    // The core checks a pinned key in place of the CA chain, insecure or not.
+                } else if (!tls->certificate_sha256.isEmpty() || !tls->certificate_public_key_sha256.isEmpty()) {
+                    // The core checks a pinned certificate or key in place of the CA chain, insecure or not.
                     info.label = QObject::tr("TLS");
                     info.level = SecurityLevel::Secure;
                 } else if (tls->insecure) {

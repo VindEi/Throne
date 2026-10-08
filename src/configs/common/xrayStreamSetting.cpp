@@ -382,9 +382,10 @@ namespace Configs {
         return {obj, ""};
     }
 
-    bool xrayXHTTP::ParseExtraJson(QString str) {
-        str = str.replace('\'', '"').replace("True", "true").replace("False", "false");
+    bool xrayXHTTP::ParseExtraJson(const QString &str) {
         auto obj = QString2QJsonObject(str);
+        // Python dict repr ('key': True), rewritten only when strict JSON fails so valid values stay intact.
+        if (obj.isEmpty()) obj = QString2QJsonObject(QString(str).replace('\'', '"').replace("True", "true").replace("False", "false"));
         if (obj.isEmpty()) return false;
         parseXHTTPExtraObject(this, obj);
         return true;
@@ -399,7 +400,9 @@ namespace Configs {
         if (query.hasQueryItem("host")) host = query.queryItemValue("host");
         if (query.hasQueryItem("path")) path = query.queryItemValue("path", QUrl::FullyDecoded);
         if (query.hasQueryItem("mode")) mode = query.queryItemValue("mode");
-        if (query.hasQueryItem("extra")) ParseExtraJson(query.queryItemValue("extra", QUrl::FullyDecoded));
+        if (query.hasQueryItem("extra") && !ParseExtraJson(query.queryItemValue("extra", QUrl::FullyDecoded))) {
+            ParseExtraJson(formDecodedQueryValue(query, "extra"));
+        }
         if (query.hasQueryItem("headers")) {
             auto raw = query.queryItemValue("headers", QUrl::FullyDecoded);
             headers = raw.split("|");
@@ -765,6 +768,7 @@ namespace Configs {
             auto fmRaw = query.queryItemValue(key, QUrl::FullyDecoded);
             QJsonParseError err;
             auto doc = QJsonDocument::fromJson(fmRaw.toUtf8(), &err);
+            if (err.error != QJsonParseError::NoError) doc = QJsonDocument::fromJson(formDecodedQueryValue(query, key).toUtf8(), &err);
             if (err.error == QJsonParseError::NoError && doc.isObject()) {
                 finalmask = doc.object();
             } else if (err.error != QJsonParseError::NoError) {

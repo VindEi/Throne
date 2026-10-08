@@ -17,6 +17,14 @@ namespace Configs
         }
     }
 
+    QString formDecodedQueryValue(const QUrlQuery& query, const QString& key)
+    {
+        // urlencode()-style panels send '+' for a space, which QUrlQuery never decodes but keeps apart from %2B.
+        auto raw = query.queryItemValue(key, QUrl::FullyEncoded).toUtf8();
+        raw.replace('+', "%20");
+        return QUrl::fromPercentEncoding(raw);
+    }
+
     void mergeJsonObjects(QJsonObject& baseObject, const QJsonObject& obj)
     {
         for (const auto& key : obj.keys())
@@ -69,6 +77,8 @@ namespace Configs
             || transport == "xhttp"
             || query.hasQueryItem("fm")
             || query.hasQueryItem("finalmask")
+            // sing-box has no counterpart to verifyPeerCertByName
+            || query.hasQueryItem("vcn")
             || (security == "reality" && dataManager->settingsRepo->xray_vless_preference == Xray::XhttpAndReality)
             || (query.queryItemValue("encryption") != "none" && query.queryItemValue("encryption") != "")
             || query.queryItemValue("extra") != "") return true;

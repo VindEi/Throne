@@ -124,7 +124,7 @@ namespace Scanner {
     ImportOutcome ParseImportBytes(const QByteArray &bytes) {
         ImportOutcome outcome;
         if (ipListUpdaterIsRuleSet(bytes)) {
-            if (API::defaultClient == nullptr) {
+            if (API::defaultClient == nullptr || !API::defaultClient->IsConnected()) {
                 outcome.error = IpListUpdater::tr("The core is not running");
                 return outcome;
             }
